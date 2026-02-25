@@ -4,3 +4,52 @@ members = [
     "bhwi", "bhwi-async", "bhwi-wasm", "bhwi-cli"
 ]
 default-members = ["bhwi", "bhwi-async", "bhwi-cli"]
+
+[workspace.dependencies]
+aes = "0.8.3"
+async-trait = "0.1"
+base64ct = "=1.7.3"
+bhwi = { path = "./bhwi" }
+bhwi-async = { path = "./bhwi-async" }
+bitcoin = { version = "0.32.2", features = ["secp-lowmemory"] }
+byteorder = "1.5"
+clap = { version = "4.4.7", features = ["derive"] }
+console_error_panic_hook = "0.1.7"
+console_log = "0.2"
+ctr = "0.9.2"
+futures = "0.3"
+getrandom = { version = "=0.2.16", features = ["js"] }
+hex = "0.4"
+js-sys = "0.3.70"
+k256 = { version = "0.13.3", features = ["arithmetic"] }
+log = "0.4"
+rand_core = { version = "0.6" }
+serde = { version = "1.0", features = ["derive"] }
+serde_bytes = { version = "0.11.14" }
+serde_cbor = { version = "0.11" }
+serde_json = "1.0.121"
+tokio = { version = "1", features = ["macros", "net", "rt", "rt-multi-thread", "io-util", "sync"] }
+wasm-bindgen = { version = "0.2.93" }
+wasm-bindgen-futures = { version ="0.4.43" }
+web-sys = { version = "0.3.77", features = [
+    "Headers",
+    "Request",
+    "RequestInit",
+    "RequestMode",
+    "Response",
+    "Hid",
+    "HidDevice",
+    "HidConnectionEvent",
+    "HidInputReportEvent",
+    "HidDeviceRequestOptions",
+    "Navigator",
+    "ReadableStream",
+    "ReadableStreamDefaultReader",
+    "Serial",
+    "SerialOptions",
+    "SerialPort",
+    "SerialPortRequestOptions",
+    "Window",
+    "WritableStream",
+    "WritableStreamDefaultWriter"
+] }
