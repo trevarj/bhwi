@@ -1,9 +1,8 @@
+use bhwi::bitcoin::Network;
+use bhwi::jade::{JadeCommand, JadeError, JadeInterpreter, JadeResponse, JadeTransmit};
+use bhwi::Interpreter;
+
 use crate::{HttpClient, Transport};
-use bhwi::{
-    bitcoin::Network,
-    jade::{JadeCommand, JadeError, JadeInterpreter, JadeResponse, JadeTransmit},
-    Interpreter,
-};
 
 pub struct Jade<T, S> {
     pub network: Network,
@@ -13,11 +12,7 @@ pub struct Jade<T, S> {
 
 impl<T, S> Jade<T, S> {
     pub fn new(network: Network, transport: T, pinserver: S) -> Self {
-        Self {
-            network,
-            transport,
-            pinserver,
-        }
+        Self { network, transport, pinserver }
     }
 }
 

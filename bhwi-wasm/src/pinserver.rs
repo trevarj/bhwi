@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use bhwi_async::HttpClient;
-use wasm_bindgen::JsCast;
-use wasm_bindgen::JsValue;
+use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Headers, Request, RequestInit, RequestMode, Response};
 

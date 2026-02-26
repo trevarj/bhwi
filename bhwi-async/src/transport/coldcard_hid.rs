@@ -1,5 +1,7 @@
-use crate::{transport::Channel, Transport};
 use async_trait::async_trait;
+
+use crate::transport::Channel;
+use crate::Transport;
 
 pub const COLDCARD_VID: u16 = 0xd13e;
 const COLDCARD_PACKET_WRITE_SIZE: usize = 63;
@@ -12,9 +14,7 @@ pub enum ColdcardHIDError {
 }
 
 impl From<std::io::Error> for ColdcardHIDError {
-    fn from(value: std::io::Error) -> Self {
-        ColdcardHIDError::Hid(value)
-    }
+    fn from(value: std::io::Error) -> Self { ColdcardHIDError::Hid(value) }
 }
 
 pub struct ColdcardTransportHID<C> {
@@ -22,9 +22,7 @@ pub struct ColdcardTransportHID<C> {
 }
 
 impl<C> ColdcardTransportHID<C> {
-    pub fn new(channel: C) -> Self {
-        Self { channel }
-    }
+    pub fn new(channel: C) -> Self { Self { channel } }
 }
 
 #[async_trait(?Send)]
@@ -39,21 +37,16 @@ impl<C: Channel> Transport for ColdcardTransportHID<C> {
             // Windows platform requires 0x00 prefix and Linux/Mac tolerate this as well
             // buffer[0] = 0;
             buffer[0] = (chunk.len() as u8)
-                | if i == n_chunks - 1 {
-                    0x80 | if encrypted { 0x40 } else { 0x00 }
-                } else {
-                    0x00
-                };
+                | if i == n_chunks - 1 { 0x80 | if encrypted { 0x40 } else { 0x00 } } else { 0x00 };
             buffer[1..1 + chunk.len()].copy_from_slice(chunk);
 
             match self.channel.send(&buffer).await {
-                Ok(size) => {
+                Ok(size) =>
                     if size < buffer.len() {
                         return Err(ColdcardHIDError::Comm(
                             "USB write error. Could not send whole message",
                         ));
-                    }
-                }
+                    },
                 Err(e) => {
                     return Err(ColdcardHIDError::Hid(e));
                 }
@@ -68,9 +61,7 @@ impl<C: Channel> Transport for ColdcardTransportHID<C> {
             let read = self.channel.receive(&mut buffer).await?;
 
             if read != buffer.len() {
-                return Err(ColdcardHIDError::Comm(
-                    "USB read error. Could not read whole message",
-                ));
+                return Err(ColdcardHIDError::Comm("USB read error. Could not read whole message"));
             }
             let flag = buffer[0];
             let is_last = flag & 0x80 != 0;

@@ -6,13 +6,9 @@ pub mod transport;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use bhwi::{
-    bitcoin::{
-        bip32::{DerivationPath, Fingerprint, Xpub},
-        Network,
-    },
-    common, Interpreter,
-};
+use bhwi::bitcoin::bip32::{DerivationPath, Fingerprint, Xpub};
+use bhwi::bitcoin::Network;
+use bhwi::{common, Interpreter};
 pub use jade::Jade;
 pub use ledger::Ledger;
 
@@ -48,9 +44,7 @@ pub enum Error<E, F> {
 }
 
 impl<E, F> From<common::Error> for Error<E, F> {
-    fn from(value: common::Error) -> Self {
-        Self::Interpreter(value)
-    }
+    fn from(value: common::Error) -> Self { Self::Interpreter(value) }
 }
 
 #[async_trait(?Send)]
@@ -63,11 +57,7 @@ where
     async fn unlock(&mut self, network: Network) -> Result<(), Self::Error> {
         let res = run_command(
             self,
-            common::Command::Unlock {
-                options: common::UnlockOptions {
-                    network: Some(network),
-                },
-            },
+            common::Command::Unlock { options: common::UnlockOptions { network: Some(network) } },
         )
         .await?;
         self.on_unlock(res)?;
@@ -142,17 +132,12 @@ where
     while let Some(t) = &transmit {
         match &t.recipient {
             common::Recipient::PinServer { url } => {
-                let res = http_client
-                    .request(url, &t.payload)
-                    .await
-                    .map_err(Error::HttpClient)?;
+                let res = http_client.request(url, &t.payload).await.map_err(Error::HttpClient)?;
                 transmit = intpr.exchange(res)?;
             }
             common::Recipient::Device => {
-                let exchange = transport
-                    .exchange(&t.payload, t.encrypted)
-                    .await
-                    .map_err(Error::Transport)?;
+                let exchange =
+                    transport.exchange(&t.payload, t.encrypted).await.map_err(Error::Transport)?;
                 transmit = intpr.exchange(exchange)?;
             }
         }

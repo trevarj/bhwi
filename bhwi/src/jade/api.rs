@@ -1,6 +1,7 @@
+use std::collections::BTreeMap;
+
 /// See https://github.com/Blockstream/Jade/blob/master/docs/index.rst
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
 use super::JadeError;
 

@@ -155,10 +155,7 @@ impl TryFrom<Vec<u8>> for ApduResponse {
         let s = u16::from_be_bytes([res[res.len() - 2], res[res.len() - 1]]);
         let status_word = StatusWord::try_from(s)?;
 
-        Ok(ApduResponse {
-            data: res[0..res.len() - 2].to_vec(),
-            status_word,
-        })
+        Ok(ApduResponse { data: res[0..res.len() - 2].to_vec(), status_word })
     }
 }
 

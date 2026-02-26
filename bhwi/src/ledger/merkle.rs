@@ -17,15 +17,10 @@ pub struct MerkleTree {
 
 impl MerkleTree {
     pub fn new(leaves: Vec<[u8; 32]>) -> Self {
-        Self {
-            root: Tree::new(&leaves, 0, leaves.len()),
-            leaves,
-        }
+        Self { root: Tree::new(&leaves, 0, leaves.len()), leaves }
     }
 
-    pub fn size(&self) -> usize {
-        self.leaves.len()
-    }
+    pub fn size(&self) -> usize { self.leaves.len() }
 
     /// Returns the root hash of the Merkle tree.
     pub fn root_hash(&self) -> &[u8; 32] {
@@ -36,9 +31,7 @@ impl MerkleTree {
     }
 
     /// Returns the leaf value at index i.
-    pub fn get_leaf(&self, i: usize) -> Option<&[u8; 32]> {
-        self.leaves.get(i)
-    }
+    pub fn get_leaf(&self, i: usize) -> Option<&[u8; 32]> { self.leaves.get(i) }
 
     /// Get position of the leaf in the tree.
     pub fn get_leaf_index(&self, val: &[u8]) -> Option<usize> {
@@ -58,12 +51,7 @@ impl MerkleTree {
 
 /// Tree is either a Node with children trees or a Leaf with only a given value.
 enum Tree {
-    Node {
-        value: [u8; 32],
-        left: Box<Tree>,
-        right: Box<Tree>,
-        height: usize,
-    },
+    Node { value: [u8; 32], left: Box<Tree>, right: Box<Tree>, height: usize },
     // index of the leaf in the leaves array
     Leaf(usize),
 }
@@ -169,8 +157,9 @@ fn largest_power_of_2_less_than(n: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bitcoin::hashes::{sha256, Hash, HashEngine};
+
+    use super::*;
 
     #[test]
     fn test_merkle_tree() {
@@ -199,15 +188,9 @@ mod tests {
 
         let tree = MerkleTree::new(leaves[0..3].to_vec());
 
-        assert_eq!(
-            tree.get_leaf_proof(0),
-            Some(vec![leaves[1].to_vec(), leaves[2].to_vec()])
-        );
+        assert_eq!(tree.get_leaf_proof(0), Some(vec![leaves[1].to_vec(), leaves[2].to_vec()]));
 
-        assert_eq!(
-            tree.get_leaf_proof(1),
-            Some(vec![leaves[0].to_vec(), leaves[2].to_vec()])
-        );
+        assert_eq!(tree.get_leaf_proof(1), Some(vec![leaves[0].to_vec(), leaves[2].to_vec()]));
 
         let mut input = vec![0x01];
         input.extend_from_slice(&leaves[0]);

@@ -12,17 +12,12 @@ pub struct SpeculosClient {
 
 impl SpeculosClient {
     pub fn new(endpoint: &str) -> SpeculosClient {
-        SpeculosClient {
-            endpoint: endpoint.into(),
-            inner: Client::new(),
-        }
+        SpeculosClient { endpoint: endpoint.into(), inner: Client::new() }
     }
 }
 
 impl Default for SpeculosClient {
-    fn default() -> SpeculosClient {
-        SpeculosClient::new("http://localhost:5000")
-    }
+    fn default() -> SpeculosClient { SpeculosClient::new("http://localhost:5000") }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -43,9 +38,7 @@ impl Transport for SpeculosClient {
         let Apdu { data } = self
             .inner
             .post(format!("{}/apdu", self.endpoint))
-            .json(&Apdu {
-                data: hex::encode(apdu_command),
-            })
+            .json(&Apdu { data: hex::encode(apdu_command) })
             .send()
             .await?
             .json()
@@ -60,17 +53,12 @@ mod tests {
 
     use super::*;
 
-    async fn init_device() -> SpeculosDevice {
-        SpeculosDevice::new(SpeculosClient::default())
-    }
+    async fn init_device() -> SpeculosDevice { SpeculosDevice::new(SpeculosClient::default()) }
 
     #[tokio::test]
     async fn can_get_master_fingerprint() {
         let mut dev = init_device().await;
-        let fingerprint = dev
-            .get_master_fingerprint()
-            .await
-            .expect("failed to get fingerprint");
+        let fingerprint = dev.get_master_fingerprint().await.expect("failed to get fingerprint");
         assert_eq!(fingerprint.to_string(), "f5acc2fd");
     }
 

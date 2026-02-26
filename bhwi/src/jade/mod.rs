@@ -1,12 +1,12 @@
 pub mod api;
 
-use bitcoin::{
-    bip32::{DerivationPath, Fingerprint, Xpub},
-    Network,
-};
-use serde::{de::DeserializeOwned, Serialize};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+use bitcoin::bip32::{DerivationPath, Fingerprint, Xpub};
+use bitcoin::Network;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use crate::Interpreter;
 
@@ -83,9 +83,7 @@ impl<C, T, R, E> JadeInterpreter<C, T, R, E> {
 // Initialize a static atomic counter
 static REQUEST_COUNTER: AtomicUsize = AtomicUsize::new(1);
 
-fn generate_request_id() -> usize {
-    REQUEST_COUNTER.fetch_add(1, Ordering::Relaxed)
-}
+fn generate_request_id() -> usize { REQUEST_COUNTER.fetch_add(1, Ordering::Relaxed) }
 
 fn request<S, T, E>(method: &str, params: Option<S>) -> Result<T, E>
 where
@@ -94,18 +92,10 @@ where
     E: From<JadeError>,
 {
     let id = generate_request_id();
-    let payload = serde_cbor::to_vec(&api::Request {
-        id: &id.to_string(),
-        method,
-        params,
-    })
-    .map_err(|_| JadeError::Serialization("failed to serialize".to_string()))?;
+    let payload = serde_cbor::to_vec(&api::Request { id: &id.to_string(), method, params })
+        .map_err(|_| JadeError::Serialization("failed to serialize".to_string()))?;
 
-    Ok(JadeTransmit {
-        payload,
-        recipient: JadeRecipient::Device,
-    }
-    .into())
+    Ok(JadeTransmit { payload, recipient: JadeRecipient::Device }.into())
 }
 
 fn from_response<D: DeserializeOwned>(buffer: &[u8]) -> Result<api::Response<D>, JadeError> {
@@ -143,10 +133,7 @@ where
             ),
             JadeCommand::GetXpub(path) => request(
                 "get_xpub",
-                Some(api::GetXpubParams {
-                    network: self.network,
-                    path: path.to_u32_vec(),
-                }),
+                Some(api::GetXpubParams { network: self.network, path: path.to_u32_vec() }),
             ),
         };
 
@@ -168,9 +155,7 @@ where
                     };
                     Ok(Some(
                         JadeTransmit {
-                            recipient: JadeRecipient::PinServer {
-                                url: url.to_string(),
-                            },
+                            recipient: JadeRecipient::PinServer { url: url.to_string() },
                             payload: serde_json::to_vec(&http_request.params.data)
                                 .map_err(|e| JadeError::Serialization(e.to_string()))?,
                         }
@@ -214,8 +199,6 @@ where
         }
     }
     fn end(self) -> Result<Self::Response, Self::Error> {
-        self.response
-            .map(Self::Response::from)
-            .ok_or_else(|| JadeError::NoErrorOrResult.into())
+        self.response.map(Self::Response::from).ok_or_else(|| JadeError::NoErrorOrResult.into())
     }
 }

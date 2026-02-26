@@ -15,7 +15,6 @@ use bitcoin::{
     taproot::TapLeafHash,
     PublicKey,
 };
-
 use serialize::Serialize;
 
 #[rustfmt::skip]
@@ -66,73 +65,47 @@ pub fn get_v2_global_pairs(psbt: &Psbt) -> Vec<raw::Pair> {
 
     for (xpub, (fingerprint, derivation)) in &psbt.xpub {
         rv.push(raw::Pair {
-            key: raw::Key {
-                type_value: PSBT_GLOBAL_XPUB,
-                key: xpub.encode().to_vec(),
-            },
+            key: raw::Key { type_value: PSBT_GLOBAL_XPUB, key: xpub.encode().to_vec() },
             value: {
                 let mut ret = Vec::with_capacity(4 + derivation.len() * 4);
                 ret.extend(fingerprint.as_bytes());
-                derivation
-                    .into_iter()
-                    .for_each(|n| ret.extend(u32::from(*n).to_le_bytes()));
+                derivation.into_iter().for_each(|n| ret.extend(u32::from(*n).to_le_bytes()));
                 ret
             },
         });
     }
 
     rv.push(raw::Pair {
-        key: raw::Key {
-            type_value: PSBT_GLOBAL_FALLBACK_LOCKTIME,
-            key: vec![],
-        },
+        key: raw::Key { type_value: PSBT_GLOBAL_FALLBACK_LOCKTIME, key: vec![] },
         value: serialize(&psbt.unsigned_tx.lock_time),
     });
 
     rv.push(raw::Pair {
-        key: raw::Key {
-            type_value: PSBT_GLOBAL_INPUT_COUNT,
-            key: vec![],
-        },
+        key: raw::Key { type_value: PSBT_GLOBAL_INPUT_COUNT, key: vec![] },
         value: serialize(&VarInt(psbt.inputs.len() as u64)),
     });
 
     rv.push(raw::Pair {
-        key: raw::Key {
-            type_value: PSBT_GLOBAL_OUTPUT_COUNT,
-            key: vec![],
-        },
+        key: raw::Key { type_value: PSBT_GLOBAL_OUTPUT_COUNT, key: vec![] },
         value: serialize(&VarInt(psbt.outputs.len() as u64)),
     });
 
     rv.push(raw::Pair {
-        key: raw::Key {
-            type_value: PSBT_GLOBAL_TX_VERSION,
-            key: vec![],
-        },
+        key: raw::Key { type_value: PSBT_GLOBAL_TX_VERSION, key: vec![] },
         value: psbt.unsigned_tx.version.0.to_le_bytes().to_vec(),
     });
 
     rv.push(raw::Pair {
-        key: raw::Key {
-            type_value: PSBT_GLOBAL_VERSION,
-            key: vec![],
-        },
+        key: raw::Key { type_value: PSBT_GLOBAL_VERSION, key: vec![] },
         value: 2_u32.to_le_bytes().to_vec(),
     });
 
     for (key, value) in psbt.proprietary.iter() {
-        rv.push(raw::Pair {
-            key: key.to_key(),
-            value: value.clone(),
-        });
+        rv.push(raw::Pair { key: key.to_key(), value: value.clone() });
     }
 
     for (key, value) in psbt.unknown.iter() {
-        rv.push(raw::Pair {
-            key: key.clone(),
-            value: value.clone(),
-        });
+        rv.push(raw::Pair { key: key.clone(), value: value.clone() });
     }
 
     rv
@@ -222,26 +195,17 @@ pub fn get_v2_input_pairs(input: &Input, txin: &TxIn) -> Vec<raw::Pair> {
     }
 
     rv.push(raw::Pair {
-        key: raw::Key {
-            type_value: PSBT_IN_PREVIOUS_TXID,
-            key: vec![],
-        },
+        key: raw::Key { type_value: PSBT_IN_PREVIOUS_TXID, key: vec![] },
         value: serialize(&txin.previous_output.txid),
     });
 
     rv.push(raw::Pair {
-        key: raw::Key {
-            type_value: PSBT_IN_OUTPUT_INDEX,
-            key: vec![],
-        },
+        key: raw::Key { type_value: PSBT_IN_OUTPUT_INDEX, key: vec![] },
         value: serialize(&txin.previous_output.vout),
     });
 
     rv.push(raw::Pair {
-        key: raw::Key {
-            type_value: PSBT_IN_SEQUENCE,
-            key: vec![],
-        },
+        key: raw::Key { type_value: PSBT_IN_SEQUENCE, key: vec![] },
         value: serialize(&txin.sequence),
     });
 
@@ -290,17 +254,11 @@ pub fn get_v2_input_pairs(input: &Input, txin: &TxIn) -> Vec<raw::Pair> {
     }
 
     for (key, value) in input.proprietary.iter() {
-        rv.push(raw::Pair {
-            key: key.to_key(),
-            value: value.clone(),
-        });
+        rv.push(raw::Pair { key: key.to_key(), value: value.clone() });
     }
 
     for (key, value) in input.unknown.iter() {
-        rv.push(raw::Pair {
-            key: key.clone(),
-            value: value.clone(),
-        });
+        rv.push(raw::Pair { key: key.clone(), value: value.clone() });
     }
 
     rv
@@ -339,18 +297,12 @@ pub fn get_v2_output_pairs(output: &Output, txout: &TxOut) -> Vec<raw::Pair> {
     }
 
     rv.push(raw::Pair {
-        key: raw::Key {
-            type_value: PSBT_OUT_AMOUNT,
-            key: vec![],
-        },
+        key: raw::Key { type_value: PSBT_OUT_AMOUNT, key: vec![] },
         value: txout.value.to_sat().to_le_bytes().to_vec(),
     });
 
     rv.push(raw::Pair {
-        key: raw::Key {
-            type_value: PSBT_OUT_SCRIPT,
-            key: vec![],
-        },
+        key: raw::Key { type_value: PSBT_OUT_SCRIPT, key: vec![] },
         value: txout.script_pubkey.as_bytes().to_vec(),
     });
 
@@ -367,27 +319,18 @@ pub fn get_v2_output_pairs(output: &Output, txout: &TxOut) -> Vec<raw::Pair> {
     }
 
     for (key, value) in output.proprietary.iter() {
-        rv.push(raw::Pair {
-            key: key.to_key(),
-            value: value.clone(),
-        });
+        rv.push(raw::Pair { key: key.to_key(), value: value.clone() });
     }
 
     for (key, value) in output.unknown.iter() {
-        rv.push(raw::Pair {
-            key: key.clone(),
-            value: value.clone(),
-        });
+        rv.push(raw::Pair { key: key.clone(), value: value.clone() });
     }
 
     rv
 }
 
 pub fn deserialize_pair(pair: raw::Pair) -> (Vec<u8>, Vec<u8>) {
-    (
-        deserialize(&Serialize::serialize(&pair.key)).unwrap(),
-        pair.value,
-    )
+    (deserialize(&Serialize::serialize(&pair.key)).unwrap(), pair.value)
 }
 
 pub enum PartialSignature {
@@ -399,9 +342,7 @@ pub enum PartialSignature {
 
 impl PartialSignature {
     pub fn from_slice(slice: &[u8]) -> Result<Self, PartialSignatureError> {
-        let key_augment_byte = slice
-            .first()
-            .ok_or(PartialSignatureError::BadKeyAugmentLength)?;
+        let key_augment_byte = slice.first().ok_or(PartialSignatureError::BadKeyAugmentLength)?;
         let key_augment_len = u8::from_le_bytes([*key_augment_byte]) as usize;
 
         if key_augment_len >= slice.len() {
@@ -442,23 +383,19 @@ pub enum PartialSignatureError {
 mod serialize {
     use core::convert::{TryFrom, TryInto};
 
-    use bitcoin::{
-        bip32::{ChildNumber, Fingerprint, KeySource},
-        blockdata::{
-            script::ScriptBuf,
-            transaction::{Transaction, TxOut},
-            witness::Witness,
-        },
-        consensus::encode::{self, deserialize_partial, serialize, Decodable, Encodable},
-        ecdsa,
-        hashes::{hash160, ripemd160, sha256, sha256d, Hash},
-        key::PublicKey,
-        psbt::{Error, PsbtSighashType},
-        secp256k1::{self, XOnlyPublicKey},
-        taproot,
-        taproot::{ControlBlock, LeafVersion, TapLeafHash, TapNodeHash, TapTree, TaprootBuilder},
-        VarInt,
+    use bitcoin::bip32::{ChildNumber, Fingerprint, KeySource};
+    use bitcoin::blockdata::script::ScriptBuf;
+    use bitcoin::blockdata::transaction::{Transaction, TxOut};
+    use bitcoin::blockdata::witness::Witness;
+    use bitcoin::consensus::encode::{self, deserialize_partial, serialize, Decodable, Encodable};
+    use bitcoin::hashes::{hash160, ripemd160, sha256, sha256d, Hash};
+    use bitcoin::key::PublicKey;
+    use bitcoin::psbt::{Error, PsbtSighashType};
+    use bitcoin::secp256k1::{self, XOnlyPublicKey};
+    use bitcoin::taproot::{
+        ControlBlock, LeafVersion, TapLeafHash, TapNodeHash, TapTree, TaprootBuilder,
     };
+    use bitcoin::{ecdsa, taproot, VarInt};
 
     macro_rules! impl_psbt_de_serialize {
         ($thing:ty) => {
@@ -481,9 +418,7 @@ mod serialize {
     macro_rules! impl_psbt_serialize {
         ($thing:ty) => {
             impl Serialize for $thing {
-                fn serialize(&self) -> Vec<u8> {
-                    bitcoin::consensus::serialize(self)
-                }
+                fn serialize(&self) -> Vec<u8> { bitcoin::consensus::serialize(self) }
             }
         };
     }
@@ -509,9 +444,7 @@ mod serialize {
     macro_rules! impl_psbt_hash_serialize {
         ($hash_type:ty) => {
             impl $crate::ledger::psbt::serialize::Serialize for $hash_type {
-                fn serialize(&self) -> Vec<u8> {
-                    self.as_byte_array().to_vec()
-                }
+                fn serialize(&self) -> Vec<u8> { self.as_byte_array().to_vec() }
             }
         };
     }
@@ -540,7 +473,7 @@ mod serialize {
     impl_psbt_hash_de_serialize!(sha256d::Hash);
 
     // taproot
-    impl_psbt_de_serialize!(Vec<TapLeafHash>);
+    impl_psbt_de_serialize!(Vec<TapLeafHash,>);
 
     impl Serialize for bitcoin::psbt::raw::Key {
         fn serialize(&self) -> Vec<u8> {
@@ -549,13 +482,10 @@ mod serialize {
                 .consensus_encode(&mut buf)
                 .expect("in-memory writers don't error");
 
-            self.type_value
-                .consensus_encode(&mut buf)
-                .expect("in-memory writers don't error");
+            self.type_value.consensus_encode(&mut buf).expect("in-memory writers don't error");
 
             for key in &self.key {
-                key.consensus_encode(&mut buf)
-                    .expect("in-memory writers don't error");
+                key.consensus_encode(&mut buf).expect("in-memory writers don't error");
             }
 
             buf
@@ -563,15 +493,11 @@ mod serialize {
     }
 
     impl Serialize for ScriptBuf {
-        fn serialize(&self) -> Vec<u8> {
-            self.to_bytes()
-        }
+        fn serialize(&self) -> Vec<u8> { self.to_bytes() }
     }
 
     impl Deserialize for ScriptBuf {
-        fn deserialize(bytes: &[u8]) -> Result<Self, Error> {
-            Ok(Self::from(bytes.to_vec()))
-        }
+        fn deserialize(bytes: &[u8]) -> Result<Self, Error> { Ok(Self::from(bytes.to_vec())) }
     }
 
     impl Serialize for PublicKey {
@@ -589,9 +515,7 @@ mod serialize {
     }
 
     impl Serialize for secp256k1::PublicKey {
-        fn serialize(&self) -> Vec<u8> {
-            self.serialize().to_vec()
-        }
+        fn serialize(&self) -> Vec<u8> { self.serialize().to_vec() }
     }
 
     impl Deserialize for secp256k1::PublicKey {
@@ -601,9 +525,7 @@ mod serialize {
     }
 
     impl Serialize for ecdsa::Signature {
-        fn serialize(&self) -> Vec<u8> {
-            self.to_vec()
-        }
+        fn serialize(&self) -> Vec<u8> { self.to_vec() }
     }
 
     impl Deserialize for ecdsa::Signature {
@@ -674,21 +596,15 @@ mod serialize {
 
     // partial sigs
     impl Serialize for Vec<u8> {
-        fn serialize(&self) -> Vec<u8> {
-            self.clone()
-        }
+        fn serialize(&self) -> Vec<u8> { self.clone() }
     }
 
     impl Deserialize for Vec<u8> {
-        fn deserialize(bytes: &[u8]) -> Result<Self, Error> {
-            Ok(bytes.to_vec())
-        }
+        fn deserialize(bytes: &[u8]) -> Result<Self, Error> { Ok(bytes.to_vec()) }
     }
 
     impl Serialize for PsbtSighashType {
-        fn serialize(&self) -> Vec<u8> {
-            serialize(&self.to_u32())
-        }
+        fn serialize(&self) -> Vec<u8> { serialize(&self.to_u32()) }
     }
 
     impl Deserialize for PsbtSighashType {
@@ -700,9 +616,7 @@ mod serialize {
 
     // Taproot related ser/deser
     impl Serialize for XOnlyPublicKey {
-        fn serialize(&self) -> Vec<u8> {
-            XOnlyPublicKey::serialize(self).to_vec()
-        }
+        fn serialize(&self) -> Vec<u8> { XOnlyPublicKey::serialize(self).to_vec() }
     }
 
     impl Deserialize for XOnlyPublicKey {
@@ -712,9 +626,7 @@ mod serialize {
     }
 
     impl Serialize for taproot::Signature {
-        fn serialize(&self) -> Vec<u8> {
-            self.to_vec()
-        }
+        fn serialize(&self) -> Vec<u8> { self.to_vec() }
     }
 
     impl Deserialize for taproot::Signature {
@@ -749,9 +661,7 @@ mod serialize {
     }
 
     impl Serialize for ControlBlock {
-        fn serialize(&self) -> Vec<u8> {
-            ControlBlock::serialize(self)
-        }
+        fn serialize(&self) -> Vec<u8> { ControlBlock::serialize(self) }
     }
 
     impl Deserialize for ControlBlock {
@@ -790,9 +700,7 @@ mod serialize {
     impl Serialize for (Vec<TapLeafHash>, KeySource) {
         fn serialize(&self) -> Vec<u8> {
             let mut buf = Vec::with_capacity(32 * self.0.len() + key_source_len(&self.1));
-            self.0
-                .consensus_encode(&mut buf)
-                .expect("Vecs don't error allocation");
+            self.0.consensus_encode(&mut buf).expect("Vecs don't error allocation");
             // TODO: Add support for writing into a writer for key-source
             buf.extend(self.1.serialize());
             buf
@@ -825,10 +733,7 @@ mod serialize {
                 // safe to cast from usize to u8
                 buf.push(leaf_info.merkle_branch().len() as u8);
                 buf.push(leaf_info.version().to_consensus());
-                leaf_info
-                    .script()
-                    .consensus_encode(&mut buf)
-                    .expect("Vecs dont err");
+                leaf_info.script().consensus_encode(&mut buf).expect("Vecs dont err");
             }
             buf
         }
@@ -839,9 +744,7 @@ mod serialize {
             let mut builder = TaprootBuilder::new();
             let mut bytes_iter = bytes.iter();
             while let Some(depth) = bytes_iter.next() {
-                let version = bytes_iter
-                    .next()
-                    .ok_or(Error::Taproot("Invalid Taproot Builder"))?;
+                let version = bytes_iter.next().ok_or(Error::Taproot("Invalid Taproot Builder"))?;
                 let (script, consumed) = deserialize_partial::<ScriptBuf>(bytes_iter.as_slice())?;
                 if consumed > 0 {
                     bytes_iter.nth(consumed - 1);
@@ -857,7 +760,5 @@ mod serialize {
     }
 
     // Helper function to compute key source len
-    fn key_source_len(key_source: &KeySource) -> usize {
-        4 + 4 * (key_source.1).as_ref().len()
-    }
+    fn key_source_len(key_source: &KeySource) -> usize { 4 + 4 * (key_source.1).as_ref().len() }
 }

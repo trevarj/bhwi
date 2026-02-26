@@ -152,11 +152,10 @@ impl WebSerialDevice {
                         break;
                     }
                 },
-                Either::Right((_, _)) => {
+                Either::Right((_, _)) =>
                     if !res.is_empty() {
                         break;
-                    }
-                }
+                    },
             }
         }
         reader.release_lock();

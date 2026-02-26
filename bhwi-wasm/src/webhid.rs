@@ -1,8 +1,9 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use futures::channel::mpsc::{unbounded, UnboundedReceiver};
 use futures::StreamExt;
 use js_sys::Uint8Array;
-use std::cell::RefCell;
-use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{HidDevice, HidDeviceRequestOptions};
@@ -113,29 +114,20 @@ impl WebHidDevice {
         on_disconnect_closure.forget();
 
         // Return the WebHidDevice
-        Some(Self {
-            device,
-            on_close_cb,
-            msg_queue: rx,
-        })
+        Some(Self { device, on_close_cb, msg_queue: rx })
     }
 
     // TODO: return error and maybe remove wasm_bindgen
     #[wasm_bindgen]
-    pub async fn read(&mut self) -> Option<Vec<u8>> {
-        self.msg_queue.next().await
-    }
+    pub async fn read(&mut self) -> Option<Vec<u8>> { self.msg_queue.next().await }
 
     // TODO: return error and maybe remove wasm_bindgen
     #[wasm_bindgen]
     pub async fn write(&self, data: &[u8]) {
         if self.device.opened() {
             let uint8_array = js_sys::Uint8Array::from(data);
-            let promise = JsFuture::from(
-                self.device
-                    .send_report_with_u8_array(0, &uint8_array)
-                    .unwrap(),
-            );
+            let promise =
+                JsFuture::from(self.device.send_report_with_u8_array(0, &uint8_array).unwrap());
             if let Err(e) = promise.await {
                 log::error!("Failed to send report: {:?}", e);
             }
@@ -162,7 +154,5 @@ impl WebHidDevice {
     }
 
     #[wasm_bindgen]
-    pub fn valid(&self) -> bool {
-        self.device.opened()
-    }
+    pub fn valid(&self) -> bool { self.device.opened() }
 }

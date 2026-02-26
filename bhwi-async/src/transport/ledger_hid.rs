@@ -13,11 +13,13 @@
 *  See the License for the specific language governing permissions and
 *  limitations under the License.
 ********************************************************************************/
-use async_trait::async_trait;
-use byteorder::{BigEndian, ReadBytesExt};
 use std::io::Cursor;
 
-use crate::{transport::Channel, Transport};
+use async_trait::async_trait;
+use byteorder::{BigEndian, ReadBytesExt};
+
+use crate::transport::Channel;
+use crate::Transport;
 
 pub const LEDGER_VID: u16 = 0x2c97;
 pub const LEDGER_USAGE_PAGE: u16 = 0xFFA0;
@@ -34,9 +36,7 @@ pub enum LedgerHIDError {
 }
 
 impl From<std::io::Error> for LedgerHIDError {
-    fn from(value: std::io::Error) -> Self {
-        LedgerHIDError::Hid(value)
-    }
+    fn from(value: std::io::Error) -> Self { LedgerHIDError::Hid(value) }
 }
 
 pub struct LedgerTransportHID<C> {
@@ -44,9 +44,7 @@ pub struct LedgerTransportHID<C> {
 }
 
 impl<C> LedgerTransportHID<C> {
-    pub fn new(channel: C) -> Self {
-        Self { channel }
-    }
+    pub fn new(channel: C) -> Self { Self { channel } }
 }
 
 #[async_trait(?Send)]
@@ -71,22 +69,20 @@ impl<C: Channel> Transport for LedgerTransportHID<C> {
         buffer[1] = (LEDGER_CHANNEL & 0xFF) as u8; // channel big endian
         buffer[2] = 0x05u8;
 
-        for (sequence_idx, chunk) in in_data
-            .chunks((LEDGER_PACKET_WRITE_SIZE - 5) as usize)
-            .enumerate()
+        for (sequence_idx, chunk) in
+            in_data.chunks((LEDGER_PACKET_WRITE_SIZE - 5) as usize).enumerate()
         {
             buffer[3] = ((sequence_idx >> 8) & 0xFF) as u8; // sequence_idx big endian
             buffer[4] = (sequence_idx & 0xFF) as u8; // sequence_idx big endian
             buffer[5..5 + chunk.len()].copy_from_slice(chunk);
 
             match self.channel.send(&buffer).await {
-                Ok(size) => {
+                Ok(size) =>
                     if size < buffer.len() {
                         return Err(LedgerHIDError::Comm(
                             "USB write error. Could not send whole message",
                         ));
-                    }
-                }
+                    },
                 Err(e) => {
                     return Err(LedgerHIDError::Hid(e));
                 }

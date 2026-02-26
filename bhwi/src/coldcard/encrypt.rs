@@ -1,22 +1,19 @@
-use aes::cipher::{generic_array::GenericArray, KeyIvInit, StreamCipher};
+use aes::cipher::generic_array::GenericArray;
+use aes::cipher::{KeyIvInit, StreamCipher};
 use bitcoin::hashes::{sha256, Hash};
-use k256::elliptic_curve::{sec1::ToEncodedPoint, Error};
+use k256::elliptic_curve::sec1::ToEncodedPoint;
+use k256::elliptic_curve::Error;
 pub use k256::schnorr::CryptoRngCore;
 
 use crate::coldcard::ColdcardError;
 
 pub enum Engine {
     New(k256::SecretKey),
-    Ready {
-        encrypt: ctr::Ctr64BE<aes::Aes256>,
-        decrypt: ctr::Ctr64BE<aes::Aes256>,
-    },
+    Ready { encrypt: ctr::Ctr64BE<aes::Aes256>, decrypt: ctr::Ctr64BE<aes::Aes256> },
 }
 
 impl Engine {
-    pub fn new(rng: &mut impl CryptoRngCore) -> Self {
-        Self::New(k256::SecretKey::random(rng))
-    }
+    pub fn new(rng: &mut impl CryptoRngCore) -> Self { Self::New(k256::SecretKey::random(rng)) }
 
     pub fn ready(&mut self, public_key: [u8; 64]) -> Result<(), ColdcardError> {
         if let Engine::New(secret_key) = self {
@@ -42,10 +39,7 @@ impl Engine {
 
     pub fn pub_key(&self) -> Result<[u8; 64], ColdcardError> {
         if let Engine::New(key) = self {
-            key.public_key()
-                .as_affine()
-                .to_encoded_point(false)
-                .as_bytes()[1..]
+            key.public_key().as_affine().to_encoded_point(false).as_bytes()[1..]
                 .try_into()
                 .map_err(|_| ColdcardError::Encryption("failed to create pubkey"))
         } else {

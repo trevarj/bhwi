@@ -7,17 +7,15 @@ pub mod error;
 pub mod psbt;
 pub mod wallet;
 
-use bitcoin::{
-    bip32::{DerivationPath, Fingerprint, Xpub},
-    Network,
-};
 use std::str::FromStr;
+
+use apdu::{ApduCommand, ApduError, ApduResponse, StatusWord};
+use bitcoin::bip32::{DerivationPath, Fingerprint, Xpub};
+use bitcoin::Network;
+use store::{DelegatedStore, StoreError};
 pub use wallet::{WalletPolicy, WalletPubKey};
 
 use crate::Interpreter;
-
-use apdu::{ApduCommand, ApduError, ApduResponse, StatusWord};
-use store::{DelegatedStore, StoreError};
 
 #[derive(Debug)]
 pub enum LedgerError {
@@ -31,15 +29,11 @@ pub enum LedgerError {
 }
 
 impl From<ApduError> for LedgerError {
-    fn from(value: ApduError) -> Self {
-        LedgerError::Apdu(value)
-    }
+    fn from(value: ApduError) -> Self { LedgerError::Apdu(value) }
 }
 
 impl From<StoreError> for LedgerError {
-    fn from(value: StoreError) -> Self {
-        LedgerError::Store(value)
-    }
+    fn from(value: StoreError) -> Self { LedgerError::Store(value) }
 }
 
 #[derive(Clone, Debug)]
@@ -72,12 +66,7 @@ pub struct LedgerInterpreter<C, T, R, E> {
 }
 
 impl<C, T, R, E> Default for LedgerInterpreter<C, T, R, E> {
-    fn default() -> Self {
-        Self {
-            state: State::default(),
-            _marker: std::marker::PhantomData,
-        }
-    }
+    fn default() -> Self { Self { state: State::default(), _marker: std::marker::PhantomData } }
 }
 
 impl<C, T, R, E> Interpreter for LedgerInterpreter<C, T, R, E>
@@ -95,17 +84,12 @@ where
     fn start(&mut self, command: Self::Command) -> Result<Self::Transmit, Self::Error> {
         let command: LedgerCommand = command.try_into()?;
         let (transmit, store) = match command {
-            LedgerCommand::GetMasterFingerprint => (
-                Self::Transmit::from(command::get_master_fingerprint()),
-                None,
-            ),
-            LedgerCommand::GetXpub { ref path, display } => (
-                Self::Transmit::from(command::get_extended_pubkey(path, display)),
-                None,
-            ),
-            LedgerCommand::OpenApp(network) => {
-                (Self::Transmit::from(command::open_app(network)), None)
-            }
+            LedgerCommand::GetMasterFingerprint =>
+                (Self::Transmit::from(command::get_master_fingerprint()), None),
+            LedgerCommand::GetXpub { ref path, display } =>
+                (Self::Transmit::from(command::get_extended_pubkey(path, display)), None),
+            LedgerCommand::OpenApp(network) =>
+                (Self::Transmit::from(command::open_app(network)), None),
         };
         self.state = State::Running { command, store };
         Ok(transmit)
@@ -116,15 +100,13 @@ where
             if res.status_word == StatusWord::InterruptedExecution {
                 if let Some(store) = store {
                     let transmit = store.execute(res.data).map_err(LedgerError::from)?;
-                    return Ok(Some(Self::Transmit::from(command::continue_interrupted(
-                        transmit,
-                    ))));
+                    return Ok(Some(Self::Transmit::from(command::continue_interrupted(transmit))));
                 } else {
                     return Err(LedgerError::Interrupted.into());
                 }
             }
             match command {
-                LedgerCommand::GetMasterFingerprint => {
+                LedgerCommand::GetMasterFingerprint =>
                     if res.data.len() < 4 {
                         return Err(LedgerError::UnexpectedResult(res.data).into());
                     } else {
@@ -133,8 +115,7 @@ where
                         self.state = State::Finished(LedgerResponse::MasterFingerprint(
                             Fingerprint::from(fg),
                         ));
-                    }
-                }
+                    },
                 LedgerCommand::GetXpub { .. } => {
                     let xpub = Xpub::from_str(&String::from_utf8_lossy(&res.data))
                         .map_err(|_| LedgerError::UnexpectedResult(res.data))?;

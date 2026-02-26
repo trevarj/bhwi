@@ -1,3 +1,5 @@
+use core::default::Default;
+
 /// APDU commands  for the Bitcoin application.
 ///
 use bitcoin::{
@@ -5,12 +7,9 @@ use bitcoin::{
     consensus::encode::{self, VarInt},
     Network,
 };
-use core::default::Default;
 
-use super::{
-    apdu::{self, ApduCommand},
-    wallet::WalletPolicy,
-};
+use super::apdu::{self, ApduCommand};
+use super::wallet::WalletPolicy;
 
 // https://github.com/LedgerHQ/ledger-live/blob/5a0a1aa5dc183116839851b79bceb6704f1de4b9/libs/ledger-live-common/src/hw/openApp.ts#L3
 pub fn open_app(network: Network) -> ApduCommand {
@@ -29,11 +28,7 @@ pub fn open_app(network: Network) -> ApduCommand {
 
 /// Creates the APDU Command to retrieve the app's name, version and state flags.
 pub fn get_version() -> ApduCommand {
-    ApduCommand {
-        ins: apdu::BitcoinCommandCode::GetVersion as u8,
-        p2: 0x00,
-        ..Default::default()
-    }
+    ApduCommand { ins: apdu::BitcoinCommandCode::GetVersion as u8, p2: 0x00, ..Default::default() }
 }
 
 /// Creates the APDU Command to retrieve the master fingerprint.
@@ -49,10 +44,7 @@ pub fn get_master_fingerprint() -> ApduCommand {
 pub fn get_extended_pubkey(path: &DerivationPath, display: bool) -> ApduCommand {
     let child_numbers: &[ChildNumber] = path.as_ref();
     let data: Vec<u8> = child_numbers.iter().fold(
-        vec![
-            if display { 1_u8 } else { b'\0' },
-            child_numbers.len() as u8,
-        ],
+        vec![if display { 1_u8 } else { b'\0' }, child_numbers.len() as u8],
         |mut acc, &x| {
             acc.extend_from_slice(&u32::from(x).to_be_bytes());
             acc
@@ -136,12 +128,10 @@ pub fn sign_message(
 ) -> ApduCommand {
     let child_numbers: &[ChildNumber] = path.as_ref();
     let mut data: Vec<u8> =
-        child_numbers
-            .iter()
-            .fold(vec![child_numbers.len() as u8], |mut acc, &x| {
-                acc.extend_from_slice(&u32::from(x).to_be_bytes());
-                acc
-            });
+        child_numbers.iter().fold(vec![child_numbers.len() as u8], |mut acc, &x| {
+            acc.extend_from_slice(&u32::from(x).to_be_bytes());
+            acc
+        });
     data.extend(encode::serialize(&VarInt(message_length as u64)));
     data.extend_from_slice(message_commitment_root);
 

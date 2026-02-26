@@ -1,12 +1,11 @@
-use crate::{HttpClient, Transport};
 use async_trait::async_trait;
-use bhwi::{
-    coldcard::{
-        encrypt::{self, CryptoRngCore},
-        ColdcardCommand, ColdcardError, ColdcardInterpreter, ColdcardResponse, ColdcardTransmit,
-    },
-    common, Interpreter,
+use bhwi::coldcard::encrypt::{self, CryptoRngCore};
+use bhwi::coldcard::{
+    ColdcardCommand, ColdcardError, ColdcardInterpreter, ColdcardResponse, ColdcardTransmit,
 };
+use bhwi::{common, Interpreter};
+
+use crate::{HttpClient, Transport};
 
 pub struct Coldcard<T> {
     pub transport: T,
@@ -15,10 +14,7 @@ pub struct Coldcard<T> {
 
 impl<T> Coldcard<T> {
     pub fn new(transport: T, rng: &mut impl CryptoRngCore) -> Self {
-        Self {
-            transport,
-            encryption: encrypt::Engine::new(rng),
-        }
+        Self { transport, encryption: encrypt::Engine::new(rng) }
     }
 }
 
@@ -39,11 +35,7 @@ where
         &dyn HttpClient<Error = Self::HttpClientError>,
         impl Interpreter<Command = C, Transmit = T, Response = R, Error = E>,
     ) {
-        (
-            &mut self.transport,
-            &DummyClient {},
-            ColdcardInterpreter::new(&mut self.encryption),
-        )
+        (&mut self.transport, &DummyClient {}, ColdcardInterpreter::new(&mut self.encryption))
     }
 }
 

@@ -1,12 +1,11 @@
 use core::convert::TryFrom;
 use core::fmt::Debug;
 
-use bitcoin::{
-    consensus::encode::{self, VarInt},
-    hashes::{sha256, Hash, HashEngine},
-};
+use bitcoin::consensus::encode::{self, VarInt};
+use bitcoin::hashes::{sha256, Hash, HashEngine};
 
-use super::{apdu::ClientCommandCode, merkle::MerkleTree};
+use super::apdu::ClientCommandCode;
+use super::merkle::MerkleTree;
 
 /// This struct keeps has methods to keep track of:
 ///   - known preimages
@@ -100,24 +99,19 @@ impl DelegatedStore {
                 self.yielded.push(command[1..].to_vec());
                 Ok(Vec::new())
             }
-            Ok(ClientCommandCode::GetPreimage) => {
-                get_preimage_command(&mut self.queue, &self.known_preimages, &command[1..])
-            }
-            Ok(ClientCommandCode::GetMerkleLeafProof) => {
-                get_merkle_leaf_proof(&mut self.queue, &self.trees, &command[1..])
-            }
-            Ok(ClientCommandCode::GetMerkleLeafIndex) => {
-                get_merkle_leaf_index(&self.trees, &command[1..])
-            }
+            Ok(ClientCommandCode::GetPreimage) =>
+                get_preimage_command(&mut self.queue, &self.known_preimages, &command[1..]),
+            Ok(ClientCommandCode::GetMerkleLeafProof) =>
+                get_merkle_leaf_proof(&mut self.queue, &self.trees, &command[1..]),
+            Ok(ClientCommandCode::GetMerkleLeafIndex) =>
+                get_merkle_leaf_index(&self.trees, &command[1..]),
             Ok(ClientCommandCode::GetMoreElements) => get_more_elements(&mut self.queue),
             Err(()) => Err(StoreError::UnknownCommand(command[0])),
         }
     }
 
     /// Consumes the interpreter and returns the yielded results.
-    pub fn yielded(self) -> Vec<Vec<u8>> {
-        self.yielded
-    }
+    pub fn yielded(self) -> Vec<Vec<u8>> { self.yielded }
 }
 
 fn get_preimage_command(
@@ -126,9 +120,7 @@ fn get_preimage_command(
     request: &[u8],
 ) -> Result<Vec<u8>, StoreError> {
     if request.len() != 33 || request[0] != b'\0' {
-        return Err(StoreError::UnsupportedRequest(
-            ClientCommandCode::GetPreimage as u8,
-        ));
+        return Err(StoreError::UnsupportedRequest(ClientCommandCode::GetPreimage as u8));
     };
 
     let (_, preimage) = known_preimages
@@ -142,11 +134,8 @@ fn get_preimage_command(
     //the rest will be stored for GET_MORE_ELEMENTS
     let max_payload_size = 255 - preimage_len_out.len() - 1;
 
-    let payload_size = if preimage.len() > max_payload_size {
-        max_payload_size
-    } else {
-        preimage.len()
-    };
+    let payload_size =
+        if preimage.len() > max_payload_size { max_payload_size } else { preimage.len() };
 
     if payload_size < preimage.len() {
         for byte in &preimage[payload_size..] {
@@ -168,9 +157,7 @@ fn get_merkle_leaf_proof(
     if !queue.is_empty() {
         return Err(StoreError::UnexpectedQueue);
     } else if request.len() < 34 {
-        return Err(StoreError::UnsupportedRequest(
-            ClientCommandCode::GetMerkleLeafProof as u8,
-        ));
+        return Err(StoreError::UnsupportedRequest(ClientCommandCode::GetMerkleLeafProof as u8));
     };
 
     let root = &request[0..32];
@@ -181,18 +168,13 @@ fn get_merkle_leaf_proof(
     let leaf_index: VarInt = encode::deserialize(&request[32 + read..])
         .map_err(|_| StoreError::UnsupportedRequest(ClientCommandCode::GetMerkleLeafProof as u8))?;
 
-    let tree = trees
-        .iter()
-        .find(|tree| tree.root_hash() == root)
-        .ok_or(StoreError::UnknownHash)?;
+    let tree = trees.iter().find(|tree| tree.root_hash() == root).ok_or(StoreError::UnknownHash)?;
 
     if leaf_index >= tree_size || tree_size.0 != tree.size() as u64 {
         return Err(StoreError::InvalidIndexOrSize);
     }
 
-    let proof = tree
-        .get_leaf_proof(leaf_index.0 as usize)
-        .ok_or(StoreError::InvalidIndexOrSize)?;
+    let proof = tree.get_leaf_proof(leaf_index.0 as usize).ok_or(StoreError::InvalidIndexOrSize)?;
 
     let len_proof = proof.len();
     let mut first_part_proof = Vec::new();
@@ -218,17 +200,12 @@ fn get_merkle_leaf_proof(
 
 fn get_merkle_leaf_index(trees: &[MerkleTree], request: &[u8]) -> Result<Vec<u8>, StoreError> {
     if request.len() < 64 {
-        return Err(StoreError::UnsupportedRequest(
-            ClientCommandCode::GetMerkleLeafIndex as u8,
-        ));
+        return Err(StoreError::UnsupportedRequest(ClientCommandCode::GetMerkleLeafIndex as u8));
     }
     let root = &request[0..32];
     let hash = &request[32..64];
 
-    let tree = trees
-        .iter()
-        .find(|tree| tree.root_hash() == root)
-        .ok_or(StoreError::UnknownHash)?;
+    let tree = trees.iter().find(|tree| tree.root_hash() == root).ok_or(StoreError::UnknownHash)?;
 
     let leaf_index = tree.get_leaf_index(hash).ok_or(StoreError::UnknownHash)?;
 

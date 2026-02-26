@@ -1,5 +1,6 @@
 use bhwi_async::{Error as HWIError, HWI};
-use bitcoin::{bip32::Fingerprint, Network};
+use bitcoin::bip32::Fingerprint;
+use bitcoin::Network;
 
 pub type Error = HWIError<(), ()>;
 

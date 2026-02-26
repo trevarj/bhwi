@@ -1,7 +1,5 @@
-use bitcoin::{
-    bip32::{DerivationPath, Fingerprint, Xpub},
-    Network,
-};
+use bitcoin::bip32::{DerivationPath, Fingerprint, Xpub};
+use bitcoin::Network;
 
 use crate::{coldcard, jade, ledger};
 
@@ -63,9 +61,8 @@ impl From<coldcard::ColdcardResponse> for Response {
         match res {
             coldcard::ColdcardResponse::MasterFingerprint(fg) => Response::MasterFingerprint(fg),
             coldcard::ColdcardResponse::Xpub(xpub) => Response::Xpub(xpub),
-            coldcard::ColdcardResponse::MyPub { encryption_key, .. } => {
-                Response::EncryptionKey(encryption_key)
-            }
+            coldcard::ColdcardResponse::MyPub { encryption_key, .. } =>
+                Response::EncryptionKey(encryption_key),
         }
     }
 }
@@ -174,21 +171,13 @@ impl From<ledger::LedgerResponse> for Response {
 
 impl From<Vec<u8>> for Transmit {
     fn from(payload: Vec<u8>) -> Transmit {
-        Transmit {
-            recipient: Recipient::Device,
-            payload,
-            encrypted: false,
-        }
+        Transmit { recipient: Recipient::Device, payload, encrypted: false }
     }
 }
 
 impl From<ledger::apdu::ApduCommand> for Transmit {
     fn from(payload: ledger::apdu::ApduCommand) -> Transmit {
-        Transmit {
-            recipient: Recipient::Device,
-            payload: payload.encode(),
-            encrypted: false,
-        }
+        Transmit { recipient: Recipient::Device, payload: payload.encode(), encrypted: false }
     }
 }
 
@@ -224,10 +213,7 @@ mod tests {
                     Error = super::Error,
                 >,
             >,
-        > = vec![
-            Box::<LedgerInterpreter>::default(),
-            Box::<JadeInterpreter>::default(),
-        ];
+        > = vec![Box::<LedgerInterpreter>::default(), Box::<JadeInterpreter>::default()];
         assert_eq!(interpreters.len(), 2);
     }
 }

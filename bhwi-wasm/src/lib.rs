@@ -6,13 +6,12 @@ pub mod webserial;
 use std::str::FromStr;
 
 use async_trait::async_trait;
-use bhwi_async::{
-    coldcard::Coldcard,
-    transport::coldcard_hid::{ColdcardTransportHID, COLDCARD_VID},
-    transport::ledger_hid::{LedgerTransportHID, LEDGER_VID},
-    Jade, Ledger, HWI as AsyncHWI,
-};
-use bitcoin::{bip32::DerivationPath, Network};
+use bhwi_async::coldcard::Coldcard;
+use bhwi_async::transport::coldcard_hid::{ColdcardTransportHID, COLDCARD_VID};
+use bhwi_async::transport::ledger_hid::{LedgerTransportHID, LEDGER_VID};
+use bhwi_async::{Jade, Ledger, HWI as AsyncHWI};
+use bitcoin::bip32::DerivationPath;
+use bitcoin::Network;
 use log::Level;
 use pinserver::PinServer;
 use wasm_bindgen::prelude::*;
@@ -39,9 +38,7 @@ pub trait HWI {
 impl<T: AsyncHWI> HWI for T {
     async fn unlock(&mut self, network: &str) -> Result<(), JsValue> {
         let n = Network::from_str(network).map_err(|e| JsValue::from_str(&e.to_string()))?;
-        self.unlock(n)
-            .await
-            .map_err(|e| JsValue::from_str(&format!("Failed to unlock: {:?}", e)))
+        self.unlock(n).await.map_err(|e| JsValue::from_str(&format!("Failed to unlock: {:?}", e)))
     }
 
     async fn get_mfg(&mut self) -> Result<String, JsValue> {
@@ -95,9 +92,7 @@ pub struct Client {
 #[wasm_bindgen]
 impl Client {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Client {
-        Client { device: None }
-    }
+    pub fn new() -> Client { Client { device: None } }
 
     #[wasm_bindgen]
     pub async fn connect_coldcard(&mut self, on_close_cb: JsValue) -> Result<(), JsValue> {
@@ -105,10 +100,8 @@ impl Client {
             .await
             .ok_or(JsValue::from_str("Failed to connect to coldcard"))?;
         let mut rng = rand_core::OsRng;
-        self.device = Some(Device::Coldcard(Coldcard::new(
-            ColdcardTransportHID::new(device),
-            &mut rng,
-        )));
+        self.device =
+            Some(Device::Coldcard(Coldcard::new(ColdcardTransportHID::new(device), &mut rng)));
         Ok(())
     }
 

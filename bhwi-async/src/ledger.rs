@@ -1,18 +1,16 @@
-use crate::{HttpClient, Transport};
 use async_trait::async_trait;
-use bhwi::{
-    ledger::{apdu::ApduCommand, LedgerCommand, LedgerError, LedgerInterpreter, LedgerResponse},
-    Interpreter,
-};
+use bhwi::ledger::apdu::ApduCommand;
+use bhwi::ledger::{LedgerCommand, LedgerError, LedgerInterpreter, LedgerResponse};
+use bhwi::Interpreter;
+
+use crate::{HttpClient, Transport};
 
 pub struct Ledger<T> {
     pub transport: T,
 }
 
 impl<T> Ledger<T> {
-    pub fn new(transport: T) -> Self {
-        Self { transport }
-    }
+    pub fn new(transport: T) -> Self { Self { transport } }
 }
 
 impl<C, T, R, E, F> crate::CommonInterface<C, T, R, E> for Ledger<F>
@@ -32,11 +30,7 @@ where
         &dyn HttpClient<Error = Self::HttpClientError>,
         impl Interpreter<Command = C, Transmit = T, Response = R, Error = E>,
     ) {
-        (
-            &mut self.transport,
-            &DummyClient {},
-            LedgerInterpreter::default(),
-        )
+        (&mut self.transport, &DummyClient {}, LedgerInterpreter::default())
     }
 }
 

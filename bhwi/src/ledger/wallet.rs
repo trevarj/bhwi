@@ -2,11 +2,9 @@ use core::convert::From;
 use core::iter::IntoIterator;
 use core::str::FromStr;
 
-use bitcoin::{
-    bip32::{DerivationPath, Error, Fingerprint, KeySource, Xpub},
-    consensus::encode::{self, VarInt},
-    hashes::{sha256, Hash, HashEngine},
-};
+use bitcoin::bip32::{DerivationPath, Error, Fingerprint, KeySource, Xpub};
+use bitcoin::consensus::encode::{self, VarInt};
+use bitcoin::hashes::{sha256, Hash, HashEngine};
 
 use super::merkle::MerkleTree;
 
@@ -93,22 +91,14 @@ impl WalletPolicy {
             _ => return Err(WalletError::UnsupportedAddressType),
         };
 
-        Ok(Self {
-            name,
-            version,
-            descriptor_template,
-            keys,
-            threshold: Some(threshold),
-        })
+        Ok(Self { name, version, descriptor_template, keys, threshold: Some(threshold) })
     }
 
     pub fn serialize(&self) -> Vec<u8> {
         let mut res: Vec<u8> = (self.version as u8).to_be_bytes().to_vec();
         res.extend_from_slice(&(self.name.len() as u8).to_be_bytes());
         res.extend_from_slice(self.name.as_bytes());
-        res.extend(encode::serialize(&VarInt(
-            self.descriptor_template.as_bytes().len() as u64,
-        )));
+        res.extend(encode::serialize(&VarInt(self.descriptor_template.as_bytes().len() as u64)));
 
         if self.version == Version::V2 {
             let mut engine = sha256::Hash::engine();
@@ -190,32 +180,18 @@ pub struct WalletPubKey {
 }
 
 impl From<Xpub> for WalletPubKey {
-    fn from(inner: Xpub) -> Self {
-        Self {
-            inner,
-            source: None,
-            multipath: None,
-        }
-    }
+    fn from(inner: Xpub) -> Self { Self { inner, source: None, multipath: None } }
 }
 
 impl From<(KeySource, Xpub)> for WalletPubKey {
     fn from(source_xpub: (KeySource, Xpub)) -> Self {
-        Self {
-            inner: source_xpub.1,
-            source: Some(source_xpub.0),
-            multipath: None,
-        }
+        Self { inner: source_xpub.1, source: Some(source_xpub.0), multipath: None }
     }
 }
 
 impl From<(KeySource, Xpub, String)> for WalletPubKey {
     fn from(source_xpub: (KeySource, Xpub, String)) -> Self {
-        Self {
-            inner: source_xpub.1,
-            source: Some(source_xpub.0),
-            multipath: Some(source_xpub.2),
-        }
+        Self { inner: source_xpub.1, source: Some(source_xpub.0), multipath: Some(source_xpub.2) }
     }
 }
 
@@ -224,11 +200,7 @@ impl FromStr for WalletPubKey {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if let Ok(key) = Xpub::from_str(s) {
-            Ok(WalletPubKey {
-                inner: key,
-                source: None,
-                multipath: None,
-            })
+            Ok(WalletPubKey { inner: key, source: None, multipath: None })
         } else {
             let (keysource_str, xpub_str) = s
                 .strip_prefix('[')
@@ -259,13 +231,9 @@ impl FromStr for WalletPubKey {
 impl core::fmt::Display for WalletPubKey {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match &self.source {
-            None => write!(
-                f,
-                "{}{}",
-                self.inner,
-                self.multipath.as_ref().unwrap_or(&"".to_string())
-            ),
-            Some((fg, path)) => {
+            None =>
+                write!(f, "{}{}", self.inner, self.multipath.as_ref().unwrap_or(&"".to_string())),
+            Some((fg, path)) =>
                 if path.is_master() {
                     write!(
                         f,
@@ -283,17 +251,18 @@ impl core::fmt::Display for WalletPubKey {
                         self.inner,
                         self.multipath.as_ref().unwrap_or(&"".to_string())
                     )
-                }
-            }
+                },
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use bitcoin::hashes::hex::FromHex;
     use core::str::FromStr;
+
+    use bitcoin::hashes::hex::FromHex;
+
+    use super::*;
 
     const MASTER_KEY_EXAMPLE: &str = "[5c9e228d]tpubDEGquuorgFNb8bjh5kNZQMPtABJzoWwNm78FUmeoPkfRtoPF7JLrtoZeT3J3ybq1HmC3Rn1Q8wFQ8J5usanzups5rj7PJoQLNyvq8QbJruW/**";
     const KEY_EXAMPLE: &str = "[5c9e228d/48'/1'/0'/0']tpubDEGquuorgFNb8bjh5kNZQMPtABJzoWwNm78FUmeoPkfRtoPF7JLrtoZeT3J3ybq1HmC3Rn1Q8wFQ8J5usanzups5rj7PJoQLNyvq8QbJruW/**";
@@ -301,10 +270,7 @@ mod tests {
     #[test]
     fn test_master_walletpubkey_fromstr() {
         let key = WalletPubKey::from_str(MASTER_KEY_EXAMPLE).unwrap();
-        assert_eq!(
-            key.source.as_ref().unwrap().0,
-            Fingerprint::from_str("5c9e228d").unwrap()
-        );
+        assert_eq!(key.source.as_ref().unwrap().0, Fingerprint::from_str("5c9e228d").unwrap());
         assert_eq!(key.source.as_ref().unwrap().1, DerivationPath::master());
         assert_eq!(key.inner, Xpub::from_str("tpubDEGquuorgFNb8bjh5kNZQMPtABJzoWwNm78FUmeoPkfRtoPF7JLrtoZeT3J3ybq1HmC3Rn1Q8wFQ8J5usanzups5rj7PJoQLNyvq8QbJruW").unwrap());
         assert_eq!(key.multipath, Some("/**".to_string()));
@@ -313,10 +279,7 @@ mod tests {
     #[test]
     fn test_walletpubkey_fromstr() {
         let key = WalletPubKey::from_str(KEY_EXAMPLE).unwrap();
-        assert_eq!(
-            key.source.as_ref().unwrap().0,
-            Fingerprint::from_str("5c9e228d").unwrap()
-        );
+        assert_eq!(key.source.as_ref().unwrap().0, Fingerprint::from_str("5c9e228d").unwrap());
         assert_eq!(
             key.source.as_ref().unwrap().1,
             DerivationPath::from_str("m/48'/1'/0'/0'").unwrap()

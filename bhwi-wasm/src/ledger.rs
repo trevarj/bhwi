@@ -1,6 +1,7 @@
-use super::webhid::WebHidDevice;
 use async_trait::async_trait;
 use bhwi_async::transport::Channel;
+
+use super::webhid::WebHidDevice;
 
 #[async_trait(?Send)]
 impl Channel for WebHidDevice {

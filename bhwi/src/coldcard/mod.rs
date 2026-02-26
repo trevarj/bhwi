@@ -22,11 +22,7 @@ pub enum ColdcardCommand {
 pub enum ColdcardResponse {
     MasterFingerprint(Fingerprint),
     Xpub(Xpub),
-    MyPub {
-        encryption_key: [u8; 64],
-        xpub_fingerprint: Fingerprint,
-        xpub: Option<Xpub>,
-    },
+    MyPub { encryption_key: [u8; 64], xpub_fingerprint: Fingerprint, xpub: Option<Xpub> },
 }
 
 pub struct ColdcardTransmit {
@@ -48,11 +44,7 @@ pub struct ColdcardInterpreter<'a, C, T, R, E> {
 
 impl<'a, C, T, R, E> ColdcardInterpreter<'a, C, T, R, E> {
     pub fn new(encryption: &'a mut encrypt::Engine) -> Self {
-        Self {
-            state: State::New,
-            encryption,
-            _marker: std::marker::PhantomData,
-        }
+        Self { state: State::New, encryption, _marker: std::marker::PhantomData }
     }
 }
 
@@ -60,10 +52,7 @@ fn request(
     payload: Vec<u8>,
     encryption: &mut encrypt::Engine,
 ) -> Result<ColdcardTransmit, ColdcardError> {
-    Ok(ColdcardTransmit {
-        payload: encryption.encrypt(payload)?,
-        encrypted: true,
-    })
+    Ok(ColdcardTransmit { payload: encryption.encrypt(payload)?, encrypted: true })
 }
 
 impl<'a, C, T, R, E> Interpreter for ColdcardInterpreter<'a, C, T, R, E>
@@ -85,13 +74,10 @@ where
                 payload: api::request::start_encryption(None, &self.encryption.pub_key()?),
                 encrypted: false,
             },
-            ColdcardCommand::GetMasterFingerprint => request(
-                api::request::get_xpub(&DerivationPath::master()),
-                self.encryption,
-            )?,
-            ColdcardCommand::GetXpub(path) => {
-                request(api::request::get_xpub(path), self.encryption)?
-            }
+            ColdcardCommand::GetMasterFingerprint =>
+                request(api::request::get_xpub(&DerivationPath::master()), self.encryption)?,
+            ColdcardCommand::GetXpub(path) =>
+                request(api::request::get_xpub(path), self.encryption)?,
         };
 
         self.state = State::Running(command);

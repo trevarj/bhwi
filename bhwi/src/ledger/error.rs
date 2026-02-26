@@ -1,6 +1,7 @@
 use core::fmt::Debug;
 
-use super::{apdu::StatusWord, store::StoreError};
+use super::apdu::StatusWord;
+use super::store::StoreError;
 
 #[derive(Debug)]
 pub enum BitcoinClientError<T: Debug> {
@@ -15,7 +16,5 @@ pub enum BitcoinClientError<T: Debug> {
 }
 
 impl<T: Debug> From<StoreError> for BitcoinClientError<T> {
-    fn from(e: StoreError) -> BitcoinClientError<T> {
-        BitcoinClientError::Store(e)
-    }
+    fn from(e: StoreError) -> BitcoinClientError<T> { BitcoinClientError::Store(e) }
 }
