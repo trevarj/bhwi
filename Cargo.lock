@@ -240,6 +240,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "bhwi-e2e-jade"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64ct",
+ "bhwi-async",
+ "bitcoin",
+ "futures",
+ "hex",
+ "rand_core 0.6.4",
+ "reqwest",
+ "serde",
+ "serde_cbor",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "bhwi-e2e-ledger"
 version = "0.1.0"
 dependencies = [
