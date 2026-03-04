@@ -6,9 +6,10 @@ pub mod transport;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use bhwi::bitcoin::bip32::{DerivationPath, Fingerprint, Xpub};
 use bhwi::bitcoin::Network;
-use bhwi::{common, Interpreter};
+use bhwi::bitcoin::bip32::{DerivationPath, Fingerprint, Xpub};
+use bhwi::bitcoin::secp256k1::ecdsa::Signature;
+use bhwi::{Interpreter, common};
 pub use jade::Jade;
 pub use ledger::Ledger;
 
@@ -34,6 +35,11 @@ pub trait HWI {
         path: DerivationPath,
         display: bool,
     ) -> Result<Xpub, Self::Error>;
+    async fn sign_message(
+        &mut self,
+        message: &[u8],
+        path: DerivationPath,
+    ) -> Result<(u8, Signature), Self::Error>;
 }
 
 #[derive(Debug)]
@@ -87,6 +93,21 @@ where
             Err(common::Error::NoErrorOrResult.into())
         }
     }
+
+    async fn sign_message(
+        &mut self,
+        message: &[u8],
+        path: DerivationPath,
+    ) -> Result<(u8, Signature), Self::Error> {
+        if let common::Response::Signature(header, signature) =
+            run_command(self, common::Command::SignMessage { message: message.to_vec(), path })
+                .await?
+        {
+            Ok((header, signature))
+        } else {
+            Err(common::Error::NoErrorOrResult.into())
+        }
+    }
 }
 
 pub trait OnUnlock {
@@ -113,13 +134,13 @@ where
     E: std::fmt::Debug + 'a,
     F: std::fmt::Debug + 'a,
     D: CommonInterface<
-        common::Command,
-        common::Transmit,
-        common::Response,
-        common::Error,
-        TransportError = E,
-        HttpClientError = F,
-    >,
+            common::Command,
+            common::Transmit,
+            common::Response,
+            common::Error,
+            TransportError = E,
+            HttpClientError = F,
+        >,
     C: Into<common::Command>,
 {
     let (transport, http_client, mut intpr) = device.components();

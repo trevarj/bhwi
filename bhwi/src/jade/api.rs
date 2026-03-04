@@ -63,7 +63,7 @@ pub struct GetXpubParams<'a> {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuthUserParams<'a> {
     pub network: &'a str,
-    pub epoch: u64,
+    pub epoch: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -173,6 +173,12 @@ pub struct SignPsbtParams<'a> {
     pub network: &'a str,
     #[serde(with = "serde_bytes")]
     pub psbt: Vec<u8>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SignMessageParams<'a> {
+    pub path: Vec<u32>,
+    pub message: &'a str,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

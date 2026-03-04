@@ -1,5 +1,6 @@
 use bitcoin::Network;
 use bitcoin::bip32::{DerivationPath, Fingerprint, Xpub};
+use bitcoin::secp256k1::ecdsa::Signature;
 
 use crate::{coldcard, jade, ledger};
 
@@ -12,6 +13,7 @@ pub enum Command {
     Unlock { options: UnlockOptions },
     GetMasterFingerprint,
     GetXpub { path: DerivationPath, display: bool },
+    SignMessage { message: Vec<u8>, path: DerivationPath },
 }
 
 pub enum Response {
@@ -19,6 +21,7 @@ pub enum Response {
     MasterFingerprint(Fingerprint),
     Xpub(Xpub),
     EncryptionKey([u8; 64]),
+    Signature(u8, Signature),
 }
 
 pub enum Recipient {

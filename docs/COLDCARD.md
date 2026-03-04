@@ -15,7 +15,7 @@ export PKG_CONFIG_PATH=/usr/local/opt/libffi/lib/pkgconfig
 My system doesn't have an issue finding `libffi` in using `pkg-config` and this
 breaks it since it's also not where my `libffi` is installed.
 
-## Running in Docker/Podman
+## Docker/Podman
 
 Inspired by https://github.com/tadeubas/coldcard-docker
 
