@@ -12,12 +12,13 @@ use std::str::FromStr;
 use apdu::{ApduCommand, ApduError, ApduResponse, StatusWord};
 use bitcoin::Network;
 use bitcoin::bip32::{DerivationPath, Fingerprint, Xpub};
+use bitcoin::consensus::encode::deserialize_partial;
 use bitcoin::secp256k1::ecdsa::Signature;
 use store::{DelegatedStore, StoreError};
 pub use wallet::{WalletPolicy, WalletPubKey};
 
 use crate::Interpreter;
-use crate::common::{Command, Error, Response};
+use crate::common::{Command, DeviceVersion, Error, Response, Version};
 use crate::device::DeviceId;
 
 pub const LEDGER_DEVICE_ID: DeviceId = DeviceId::new(0x2c97)
@@ -57,6 +58,7 @@ impl LedgerError {
 #[derive(Clone, Debug)]
 pub enum LedgerCommand {
     OpenApp(Network),
+    GetVersion,
     GetMasterFingerprint,
     GetXpub {
         path: DerivationPath,
@@ -68,10 +70,59 @@ pub enum LedgerCommand {
     },
 }
 
+/// Parsed response from the `GetVersion` APDU command.
+///
+/// The raw response format from the device is:
+/// - 1 byte: version tag (0x01)
+/// - length-prefixed string: app name
+/// - length-prefixed string: app version
+/// - length-prefixed bytes: state flags
+#[derive(Debug, Clone)]
+pub struct AppVersionInfo {
+    pub app_name: String,
+    pub version: String,
+    pub flags: Vec<u8>,
+}
+
+impl AppVersionInfo {
+    pub fn network(&self) -> Network {
+        if self.app_name == "Bitcoin" {
+            Network::Bitcoin
+        } else {
+            Network::Testnet
+        }
+    }
+}
+
+impl TryFrom<Vec<u8>> for AppVersionInfo {
+    type Error = String;
+
+    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
+        if data.is_empty() || data[0] != 0x01 {
+            return Err(format!(
+                "invalid version response header: expected 0x01, got {:02x}",
+                data.first().map_or(0, |b| *b)
+            ));
+        }
+        let (app_name, i): (String, usize) = deserialize_partial(&data[1..])
+            .map_err(|e| format!("failed to parse app name: {e}"))?;
+        let (version, j): (String, usize) = deserialize_partial(&data[1 + i..])
+            .map_err(|e| format!("failed to parse version: {e}"))?;
+        let (flags, _): (Vec<u8>, usize) = deserialize_partial(&data[1 + i + j..])
+            .map_err(|e| format!("failed to parse flags: {e}"))?;
+        Ok(AppVersionInfo {
+            app_name,
+            version,
+            flags,
+        })
+    }
+}
+
 pub enum LedgerResponse {
     TaskDone,
     MasterFingerprint(Fingerprint),
     Xpub(Xpub),
+    Version(Version),
     Signature(u8, Signature),
 }
 
@@ -115,6 +166,7 @@ where
     fn start(&mut self, command: Self::Command) -> Result<Self::Transmit, Self::Error> {
         let command: LedgerCommand = command.try_into()?;
         let (transmit, store) = match command {
+            LedgerCommand::GetVersion => (Self::Transmit::from(command::get_version()), None),
             LedgerCommand::GetMasterFingerprint => (
                 Self::Transmit::from(command::get_master_fingerprint()),
                 None,
@@ -160,12 +212,38 @@ where
                     return Err(LedgerError::Interrupted.into());
                 }
             }
-            // FIXME: cleaner handling of res.status_word before processingn
-            // command results
+            // FIXME: cleaner handling of res.status_word before processing command results
             match command {
+                LedgerCommand::GetVersion => {
+                    if res.status_word != StatusWord::OK {
+                        return Err(LedgerError::unexpected_result(
+                            res.data,
+                            "get_version response",
+                        )
+                        .into());
+                    }
+                    let app_version = AppVersionInfo::try_from(res.data.clone())
+                        .map_err(|e| LedgerError::unexpected_result(res.data, e))?;
+                    let network = if app_version.app_name == "Bitcoin Test" {
+                        Some(Network::Testnet)
+                    } else if app_version.app_name == "Bitcoin" {
+                        Some(Network::Bitcoin)
+                    } else {
+                        None
+                    };
+                    self.state = State::Finished(LedgerResponse::Version(Version {
+                        version: DeviceVersion::from(&app_version.version[..]),
+                        network,
+                        firmware: Some(app_version.app_name),
+                    }));
+                }
                 LedgerCommand::GetMasterFingerprint => {
                     if res.data.len() < 4 {
-                        return Err(LedgerError::unexpected_result(res.data, "master fingerprint response").into());
+                        return Err(LedgerError::unexpected_result(
+                            res.data,
+                            "master fingerprint response",
+                        )
+                        .into());
                     } else {
                         let mut fg = [0x00; 4];
                         fg.copy_from_slice(&res.data[0..4]);
@@ -182,13 +260,13 @@ where
                 LedgerCommand::OpenApp(..) => {
                     if matches!(
                         res.status_word,
-                        StatusWord::OK |
-                        // An app is already open and the cla cannot be supported
-                        StatusWord::ClaNotSupported
+                        StatusWord::OK | StatusWord::ClaNotSupported
                     ) {
                         self.state = State::Finished(LedgerResponse::TaskDone);
                     } else {
-                        return Err(LedgerError::unexpected_result(res.data, "open app status").into());
+                        return Err(
+                            LedgerError::unexpected_result(res.data, "open app response").into(),
+                        );
                     }
                 }
                 LedgerCommand::SignMessage { .. } => match res.status_word {
@@ -198,11 +276,18 @@ where
                     }
                     StatusWord::OK => {
                         let header = res.data[0];
-                        let sig = Signature::from_compact(&res.data[1..])
-                            .map_err(|_| LedgerError::unexpected_result(res.data, "signature compact data"))?;
+                        let sig = Signature::from_compact(&res.data[1..]).map_err(|_| {
+                            LedgerError::unexpected_result(res.data, "signature compact data")
+                        })?;
                         self.state = State::Finished(LedgerResponse::Signature(header, sig));
                     }
-                    _ => return Err(LedgerError::unexpected_result(res.data, "sign message status").into()),
+                    _ => {
+                        return Err(LedgerError::unexpected_result(
+                            res.data,
+                            "sign message status",
+                        )
+                        .into());
+                    }
                 },
             }
         }
@@ -228,7 +313,7 @@ impl TryFrom<Command> for LedgerCommand {
             Command::GetMasterFingerprint => Ok(Self::GetMasterFingerprint),
             Command::GetXpub { path, display } => Ok(Self::GetXpub { path, display }),
             Command::SignMessage { message, path } => Ok(Self::SignMessage { message, path }),
-            Command::GetVersion => todo!(),
+            Command::GetVersion => Ok(Self::GetVersion),
         }
     }
 }
@@ -239,6 +324,7 @@ impl From<LedgerResponse> for Response {
             LedgerResponse::MasterFingerprint(fg) => Response::MasterFingerprint(fg),
             LedgerResponse::TaskDone => Response::TaskDone,
             LedgerResponse::Xpub(xpub) => Response::Xpub(xpub),
+            LedgerResponse::Version(version) => Response::Version(version),
             LedgerResponse::Signature(header, signature) => Response::Signature(header, signature),
         }
     }
