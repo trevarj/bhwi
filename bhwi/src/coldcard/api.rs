@@ -35,6 +35,11 @@ pub mod request {
     pub fn get_signed_message() -> Vec<u8> {
         b"smok".to_vec()
     }
+
+    // https://github.com/Coldcard/ckcc-protocol/blob/0bd92d4d6d01872e41ffc1e7d9a1e2f153130061/ckcc/protocol.py#L114
+    pub fn get_version() -> Vec<u8> {
+        b"vers".to_vec()
+    }
 }
 
 #[cfg(test)]
@@ -186,6 +191,19 @@ pub mod response {
 
     pub fn get_xpub(res: &[u8]) -> Result<ColdcardResponse, ColdcardError> {
         Ok(ColdcardResponse::Xpub(xpub(res)?))
+    }
+
+    pub fn version(res: &[u8]) -> Result<ColdcardResponse, ColdcardError> {
+        let data = ResponseHandler::expect_response(res, ResponseMessage::Asci)?;
+        let version_string =
+            std::str::from_utf8(data).map_err(|e| ColdcardError::Serialization(e.to_string()))?;
+        let lines = version_string.lines().collect::<Vec<&str>>();
+        let version = lines.get(1).unwrap_or(&version_string).to_string();
+        let device_model = lines.last().cloned().unwrap_or_default().to_string();
+        Ok(ColdcardResponse::Version {
+            version,
+            device_model,
+        })
     }
 
     pub fn mypub(res: &[u8]) -> Result<ColdcardResponse, ColdcardError> {
