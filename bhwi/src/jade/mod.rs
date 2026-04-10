@@ -11,8 +11,9 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use crate::Interpreter;
-use crate::common::{Command, Error, Recipient, Response, Transmit};
+use crate::common::{Command, Error, Recipient, Response, Transmit, Version};
 use crate::device::DeviceId;
+use crate::jade::api::GetInfoResponse;
 
 pub const JADE_NETWORK_MAINNET: &str = "mainnet";
 pub const JADE_NETWORK_TESTNET: &str = "testnet";
@@ -39,6 +40,7 @@ pub enum JadeError {
 pub enum JadeCommand {
     Auth,
     GetMasterFingerprint,
+    GetVersion,
     GetXpub(DerivationPath),
     SignMessage {
         message: Vec<u8>,
@@ -51,6 +53,7 @@ pub enum JadeResponse {
     MasterFingerprint(Fingerprint),
     Xpub(Xpub),
     Signature(u8, Signature),
+    Info(GetInfoResponse),
 }
 
 pub enum JadeRecipient {
@@ -174,6 +177,7 @@ where
                         .map_err(|e| JadeError::Serialization(e.to_string()))?,
                 }),
             ),
+            JadeCommand::GetVersion => request("get_version_info", None::<api::EmptyRequest>),
         };
 
         self.state = State::Running(command);
@@ -250,6 +254,11 @@ where
                 self.response = Some(JadeResponse::Signature(sig_bytes[0], sig));
                 Ok(None)
             }
+            State::Running(JadeCommand::GetVersion) => {
+                let info: GetInfoResponse = from_response(&data)?.into_result()?;
+                self.response = Some(JadeResponse::Info(info));
+                Ok(None)
+            }
         }
     }
     fn end(self) -> Result<Self::Response, Self::Error> {
@@ -266,7 +275,7 @@ impl From<Command> for JadeCommand {
             Command::GetMasterFingerprint => Self::GetMasterFingerprint,
             Command::GetXpub { path, .. } => Self::GetXpub(path),
             Command::SignMessage { message, path } => Self::SignMessage { message, path },
-            Command::GetVersion => todo!(),
+            Command::GetVersion => Self::GetVersion,
         }
     }
 }
@@ -278,6 +287,11 @@ impl From<JadeResponse> for Response {
             JadeResponse::MasterFingerprint(fg) => Response::MasterFingerprint(fg),
             JadeResponse::Xpub(xpub) => Response::Xpub(xpub),
             JadeResponse::Signature(header, signature) => Response::Signature(header, signature),
+            JadeResponse::Info(info) => Response::Version(Version {
+                version: info.jade_version.as_str().into(),
+                network: Some(info.jade_networks.into()),
+                firmware: None,
+            }),
         }
     }
 }
@@ -308,7 +322,10 @@ impl From<JadeError> for Error {
             JadeError::NoErrorOrResult => Error::NoErrorOrResult,
             JadeError::Rpc(api_error) => Error::Rpc(api_error.code, api_error.message),
             JadeError::Serialization(s) => Error::Serialization(s),
-            JadeError::UnexpectedResult(msg) => Error::unexpected_result(msg.clone().into_bytes(), format!("jade unexpected result: {msg}")),
+            JadeError::UnexpectedResult(msg) => Error::unexpected_result(
+                msg.clone().into_bytes(),
+                format!("jade unexpected result: {msg}"),
+            ),
             JadeError::HandshakeRefused => Error::AuthenticationRefused,
         }
     }

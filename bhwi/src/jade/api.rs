@@ -1,4 +1,5 @@
-/// See https://github.com/Blockstream/Jade/blob/master/docs/index.rst
+// See https://github.com/Blockstream/Jade/blob/master/docs/index.rst
+use bitcoin::Network;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -131,6 +132,15 @@ pub enum JadeNetworks {
     Test,
     #[serde(alias = "ALL")]
     All,
+}
+
+impl From<JadeNetworks> for Network {
+    fn from(network: JadeNetworks) -> Self {
+        match network {
+            JadeNetworks::Main => Network::Bitcoin,
+            JadeNetworks::Test | JadeNetworks::All => Network::Testnet,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
