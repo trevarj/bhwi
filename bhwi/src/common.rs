@@ -10,10 +10,8 @@ pub struct UnlockOptions {
 }
 
 pub enum Command {
-    Unlock {
-        options: UnlockOptions,
-    },
     GetMasterFingerprint,
+    GetVersion,
     GetXpub {
         path: DerivationPath,
         display: bool,
@@ -22,15 +20,62 @@ pub enum Command {
         message: Vec<u8>,
         path: DerivationPath,
     },
+    Unlock {
+        options: UnlockOptions,
+    },
 }
 
 pub enum Response {
     TaskDone,
     TaskBusy,
+    Version(Version),
     MasterFingerprint(Fingerprint),
     Xpub(Xpub),
     EncryptionKey([u8; 64]),
     Signature(u8, Signature),
+}
+
+/// Version information returned from a device.
+/// Fields that a device cannot provide are `None`.
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct Version {
+    pub version: DeviceVersion,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub network: Option<Network>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub firmware: Option<String>,
+}
+
+/// Device version string — tries to parse as semver, falling back to raw string.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(untagged)]
+pub enum DeviceVersion {
+    Semver(semver::Version),
+    Raw(String),
+}
+
+impl From<&str> for DeviceVersion {
+    fn from(s: &str) -> Self {
+        match semver::Version::parse(s) {
+            Ok(v) => DeviceVersion::Semver(v),
+            Err(_) => DeviceVersion::Raw(s.to_string()),
+        }
+    }
+}
+
+impl std::fmt::Display for DeviceVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DeviceVersion::Semver(v) => write!(f, "{v}"),
+            DeviceVersion::Raw(s) => write!(f, "{s}"),
+        }
+    }
+}
+
+impl Default for DeviceVersion {
+    fn default() -> Self {
+        DeviceVersion::Raw(String::new())
+    }
 }
 
 pub enum Recipient {
