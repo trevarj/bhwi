@@ -104,6 +104,15 @@ impl DeviceManager {
             d.device.unlock(self.config.network).await?;
             if let Some(fingerprint) = self.config.fingerprint {
                 if fingerprint == d.fingerprint().await? {
+                    let version = d.version().await?;
+                    if let Some(device_network) = version.network
+                        && device_network != self.config.network
+                    {
+                        eprintln!(
+                            "warning: device is on {device_network}, expected {}",
+                            self.config.network
+                        );
+                    }
                     return Ok(Some(d));
                 }
             } else {
