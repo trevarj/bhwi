@@ -42,6 +42,12 @@ impl NoiseConfigData {
 /// Called synchronously by the interpreter the moment the pairing code becomes available
 /// (right before emitting `OP_I_CAN_HAS_PAIRIN_VERIFICASHUN`). The caller is expected to
 /// display the code so the user can confirm it on the device screen.
+///
+/// `Send` off-wasm so `NoiseState` can be held behind FFI object handles;
+/// wasm closures capture `JsValue`s and are single-threaded anyway.
+#[cfg(not(target_arch = "wasm32"))]
+pub type PairingCodeHook = Box<dyn FnMut(&str) + Send>;
+#[cfg(target_arch = "wasm32")]
 pub type PairingCodeHook = Box<dyn FnMut(&str)>;
 
 /// Persistent noise state held by the async wrapper across calls.
