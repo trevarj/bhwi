@@ -34,6 +34,7 @@ mod tests {
         TxOut, Witness, absolute::LockTime, transaction::Version as TxVersion,
     };
     use std::str::FromStr;
+    use std::sync::mpsc;
     use std::time::Duration;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpStream;
@@ -94,10 +95,19 @@ mod tests {
     async fn device() -> SimDevice {
         let stream = connect().await;
         let mut dev = BitBox::new(BitBoxTransportHID::new(TcpChannel::new(stream)), None);
+        let (pairing_code_tx, pairing_code_rx) = mpsc::channel();
+        dev.set_pairing_code_hook(Box::new(move |code| {
+            pairing_code_tx.send(code.to_owned()).unwrap();
+        }));
         // The simulator auto-confirms pairing (no user present).
         dev.unlock(Network::Bitcoin)
             .await
             .expect("pair with simulator");
+        let code = pairing_code_rx
+            .try_recv()
+            .expect("pairing callback during simulator unlock");
+        assert!(!code.is_empty());
+        assert_eq!(dev.pairing_code(), Some(code.as_str()));
         // Seed the fixed simulator mnemonic so derived keys are deterministic. The simulator
         // process persists across tests, so once it is seeded a further restore reports
         // `InvalidState` — treat that as "already seeded" and carry on.

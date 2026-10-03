@@ -20,6 +20,16 @@ the only difference from the USB HID path is the underlying byte channel (a TCP
 stream). The simulator auto-confirms Noise pairing, so no on-device button press
 is required.
 
+## Pairing callbacks
+
+Install the pairing-code hook before `unlock`: it runs synchronously before the
+device's pairing-confirmation request, so keep it non-blocking (e.g. a channel send).
+Native hooks require `Send`, keeping `NoiseState` movable across worker threads;
+native `PairingCodePrompt` uses `Arc<dyn Fn(&str) + Send + Sync>`. On wasm, hooks
+remain non-`Send` and prompts use `Rc` so they can capture browser values.
+The e2e helper asserts real firmware callback delivery during unlock, including
+the focused `can_get_master_fingerprint` test.
+
 ## CLI e2e
 
 The `bhwi` CLI reaches the simulator over TCP through the BitBox02 emulator path

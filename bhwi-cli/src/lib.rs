@@ -1,4 +1,4 @@
-use std::{ops::Deref, rc::Rc};
+use std::{ops::Deref, sync::Arc};
 
 #[cfg(target_os = "linux")]
 pub use bhwi_async_transport::udev;
@@ -123,7 +123,7 @@ fn manager_over(
     password_given: bool,
 ) -> DeviceManager {
     let manager = bhwi_async_transport::DeviceManager::new(source, selector)
-        .with_pairing_code_prompt(Rc::new(|code| {
+        .with_pairing_code_prompt(Arc::new(|code| {
             eprintln!("\nBitBox02 pairing code — confirm on device:\n\n{code}\n");
         }));
     #[cfg(feature = "keepkey")]

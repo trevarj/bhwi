@@ -1,5 +1,7 @@
 use core::fmt;
 use std::rc::Rc;
+#[cfg(not(target_arch = "wasm32"))]
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use bhwi::bitcoin::{Network, bip32::Fingerprint};
@@ -109,6 +111,9 @@ impl DeviceSelector {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+pub type PairingCodePrompt = Arc<dyn Fn(&str) + Send + Sync>;
+#[cfg(target_arch = "wasm32")]
 pub type PairingCodePrompt = Rc<dyn Fn(&str)>;
 
 /// A device found on a bus but not yet opened.
