@@ -36,6 +36,11 @@ on-demand workflow.
 
 ## CI
 
+The core linter in `.github/workflows/main.yml` uses current stable Rust,
+which may be newer than `rust-toolchain.toml` in the Nix shell. `Cargo.lock`
+uses async-trait 0.1.92, whose [upstream fix](https://github.com/dtolnay/async-trait/commit/875ceecb100bab2cf369178633b4791336d92b75)
+removes redundant generated `#[must_use]` attributes without suppressing Clippy.
+
 `.github/workflows/emulators.yml` runs:
 
 - `nix flake show --allow-import-from-derivation`
