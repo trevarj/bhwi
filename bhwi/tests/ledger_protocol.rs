@@ -44,6 +44,11 @@ fn wallet() -> LedgerWalletPolicy {
         WalletPolicy::from_str(&format!("wpkh({A}/<0;1>/*)")).unwrap(),
     )
 }
+fn complex_descriptor() -> String {
+    format!(
+        "tr({A}/<0;1>/*,{{{{and_v(v:multi_a(1,{B}/<2;3>/*,{A}/<2;3>/*),older(17)),and_v(v:multi_a(1,{B}/<4;5>/*,{A}/<4;5>/*),older(20))}},pk({B}/<0;1>/*)}})"
+    )
+}
 fn start(command: LedgerCommand) -> (Driver, ApduCommand) {
     let mut driver = Driver::default();
     let apdu = driver.start(NativeCommand(command)).unwrap();
@@ -242,9 +247,7 @@ fn wallet_v1_v2_wire_and_ids_match_recorded_baseline() {
         ),
         (
             "taproot-repeated",
-            format!(
-                "tr({A}/<0;1>/*,{{{{and_v(v:multi_a(1,{B}/<2;3>/*,{A}/<2;3>/*),older(17)),and_v(v:multi_a(1,{B}/<4;5>/*,{A}/<4;5>/*),older(20))}},pk({B}/<0;1>/*)}})"
-            ),
+            complex_descriptor(),
             [
                 (
                     "0110746170726f6f742d72657065617465647f74722840302f2a2a2c7b7b616e645f7628763a6d756c74695f6128312c40312f3c323b333e2f2a2c40302f3c323b333e2f2a292c6f6c64657228313729292c616e645f7628763a6d756c74695f6128312c40312f3c343b353e2f2a2c40302f3c343b353e2f2a292c6f6c64657228323029297d2c706b2840312f2a2a297d29029654b1195eba5a43a33312132ec2173999288ea721875bcae197c625ef875da3",
@@ -564,6 +567,230 @@ fn registration_parser_accepts_tail_and_rejects_short_payloads() {
     }
     let (mut driver, _) = start(LedgerCommand::RegisterWallet { policy: wallet() });
     let data = [&wallet().id().unwrap()[..], &[7; 32], &[0xff]].concat();
-    assert!(driver.exchange(reply(data, 0x9000)).unwrap().is_none());
+    assert!(driver.exchange(reply(data, 0x9000)).unwrap().is_some());
+    driver
+        .exchange(reply(derive_address(&wallet(), false, 0), 0x9000))
+        .unwrap();
     assert!(matches!(driver.end().unwrap(), LedgerResponse::WalletHmac(hmac) if hmac == [7;32]));
+}
+
+fn path_address(change: bool, index: u32) -> (Driver, ApduCommand, LedgerWalletPolicy) {
+    let path: DerivationPath = format!("m/84'/1'/0'/{}/{index}", u8::from(change))
+        .parse()
+        .unwrap();
+    let xpub = bitcoin::bip32::Xpub::from_str(A.split(']').nth(1).unwrap()).unwrap();
+    let fingerprint = bitcoin::bip32::Fingerprint::from_str("0266a74a").unwrap();
+    let policy = LedgerWalletPolicy::new(
+        String::new(),
+        Version::V2,
+        bhwi::ledger::singlesig_wallet_policy(&path, fingerprint, xpub).unwrap(),
+    );
+    let (mut driver, initial) = start(LedgerCommand::GetWalletAddress {
+        address: LedgerDisplayAddress::ByPath {
+            path,
+            display: true,
+        },
+    });
+    assert_eq!(initial.ins, 5);
+    let xpub_command = driver
+        .exchange(reply(fingerprint.as_bytes(), 0x9000))
+        .unwrap()
+        .unwrap();
+    assert_eq!(xpub_command.ins, 0);
+    let address_command = driver
+        .exchange(reply(xpub.to_string(), 0x9000))
+        .unwrap()
+        .unwrap();
+    (driver, address_command, policy)
+}
+
+#[test]
+fn paranoid_address_checks_cover_both_routes_and_retained_indices() {
+    for change in [false, true] {
+        for index in [0, 7] {
+            for by_path in [false, true] {
+                for mismatch in [false, true] {
+                    let (mut driver, command, policy) = if by_path {
+                        path_address(change, index)
+                    } else {
+                        let policy = wallet();
+                        let (driver, command) =
+                            start(address_request(policy.clone(), change, index));
+                        (driver, command, policy)
+                    };
+                    assert_eq!(
+                        &command.data[65..],
+                        &[u8::from(change), 0, 0, 0, index as u8]
+                    );
+                    let wire = policy.serialize().unwrap();
+                    assert_eq!(&preimage(&mut driver, &wire).unwrap().data[2..], wire);
+                    let address = derive_address(&policy, change, index + u32::from(mismatch));
+                    let result = driver.exchange(reply(&address, 0x9000));
+                    if mismatch {
+                        assert!(
+                            matches!(result, Err(LedgerError::UnexpectedResult(bytes, context)) if bytes == address.as_bytes() && context.contains("Invalid address"))
+                        );
+                        assert!(
+                            driver
+                                .exchange(reply(derive_address(&policy, change, index), 0x9000))
+                                .unwrap()
+                                .is_none()
+                        );
+                        assert!(driver.end().is_err());
+                    } else {
+                        assert!(result.unwrap().is_none());
+                        assert!(
+                            matches!(driver.end().unwrap(), LedgerResponse::Address(text) if text == address)
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn registration_followup() -> Driver {
+    let policy = wallet();
+    let (mut driver, _) = start(LedgerCommand::RegisterWallet {
+        policy: policy.clone(),
+    });
+    let hmac = [7; 32];
+    let command = driver
+        .exchange(reply([&policy.id().unwrap()[..], &hmac].concat(), 0x9000))
+        .unwrap()
+        .expect("registration must verify an address");
+    assert_eq!(
+        (command.cla, command.ins, command.p1, command.p2),
+        (0xe1, 3, 0, 1)
+    );
+    assert_eq!(command.data[0], 0);
+    assert_eq!(&command.data[1..33], &policy.id().unwrap());
+    assert_eq!(&command.data[33..65], &hmac);
+    assert_eq!(&command.data[65..], &[0; 5]);
+    driver
+}
+
+#[test]
+fn registration_is_not_finished_until_independent_verification() {
+    assert!(matches!(
+        registration_followup().end(),
+        Err(LedgerError::NoErrorOrResult)
+    ));
+    let mut driver = registration_followup();
+    let policy = wallet();
+    let wire = policy.serialize().unwrap();
+    assert_eq!(&preimage(&mut driver, &wire).unwrap().data[2..], wire);
+    driver
+        .exchange(reply(derive_address(&policy, false, 0), 0x9000))
+        .unwrap();
+    assert!(matches!(driver.end().unwrap(), LedgerResponse::WalletHmac(hmac) if hmac == [7;32]));
+}
+
+#[test]
+fn registration_followup_fails_closed_for_every_failure_category() {
+    let failures = [
+        (reply(derive_address(&wallet(), false, 1), 0x9000), 0),
+        (reply(b"not an address", 0x9000), 0),
+        (reply([], 0x9000), 0),
+        (reply([], 0x6a80), 1),
+        (reply([], 0x6901), 1),
+        (reply([], 0x6982), 2),
+        (reply([], 0x6985), 2),
+        (reply([], 0x5501), 2),
+        (reply([0xff], 0xe000), 3),
+        (reply([0x40], 0xe000), 3),
+        (vec![0x90], 4),
+        (reply([], 0x1234), 4),
+    ];
+    for (response, category) in failures {
+        let mut driver = registration_followup();
+        let error = driver
+            .exchange(response)
+            .err()
+            .expect("follow-up must fail");
+        assert!(matches!(
+            (category, error),
+            (0, LedgerError::UnexpectedResult(_, _))
+                | (
+                    1,
+                    LedgerError::Status(_, "register wallet: address verification")
+                )
+                | (2, LedgerError::UserCancelled(_))
+                | (3, LedgerError::Store(_))
+                | (4, LedgerError::Apdu(_))
+        ));
+        // A failed reply consumes the HMAC; a later success cannot release it.
+        assert!(
+            driver
+                .exchange(reply(derive_address(&wallet(), false, 0), 0x9000))
+                .unwrap()
+                .is_none()
+        );
+        assert!(matches!(driver.end(), Err(LedgerError::NoErrorOrResult)));
+    }
+}
+
+#[test]
+fn address_routes_fail_closed_for_malformed_status_cancel_and_delegation() {
+    for by_path in [false, true] {
+        for response in [
+            reply(b"not an address", 0x9000),
+            reply([], 0x6a80),
+            reply([], 0x6982),
+            reply([0xff], 0xe000),
+            vec![0x90],
+            reply([], 0x1234),
+        ] {
+            let (mut driver, _, policy) = if by_path {
+                path_address(false, 0)
+            } else {
+                let policy = wallet();
+                let (driver, command) = start(address_request(policy.clone(), false, 0));
+                (driver, command, policy)
+            };
+            assert!(driver.exchange(response).is_err());
+            driver
+                .exchange(reply(derive_address(&policy, false, 0), 0x9000))
+                .unwrap();
+            assert!(driver.end().is_err());
+        }
+    }
+}
+
+#[test]
+fn complex_taproot_verification_preserves_repeated_key_multipaths() {
+    let policy = LedgerWalletPolicy::new(
+        "taproot-repeated".into(),
+        Version::V2,
+        WalletPolicy::from_str(&complex_descriptor()).unwrap(),
+    );
+    // Expected addresses use BHWI's miniscript 13; the vendor verifier uses 12.
+    for (change, index) in [(false, 0), (true, 7)] {
+        let expected = derive_address(&policy, change, index);
+        let (mut driver, _) = start(address_request(policy.clone(), change, index));
+        assert!(driver.exchange(reply(&expected, 0x9000)).unwrap().is_none());
+        assert!(matches!(
+            driver.end().unwrap(),
+            LedgerResponse::Address(address) if address == expected
+        ));
+    }
+
+    let mut registration = [7; 64];
+    registration[..32].copy_from_slice(&policy.id().unwrap());
+    let (mut driver, _) = start(LedgerCommand::RegisterWallet {
+        policy: policy.clone(),
+    });
+    assert!(
+        driver
+            .exchange(reply(registration, 0x9000))
+            .unwrap()
+            .is_some()
+    );
+    driver
+        .exchange(reply(derive_address(&policy, false, 0), 0x9000))
+        .unwrap();
+    assert!(matches!(
+        driver.end().unwrap(),
+        LedgerResponse::WalletHmac(hmac) if hmac == [7; 32]
+    ));
 }

@@ -14,6 +14,7 @@ use ledger_bitcoin_client::{
     command as vendor_command,
     interpreter::{ClientCommandInterpreter, InterpreterError},
     protocol,
+    wallet::WalletPolicy as VendorWalletPolicy,
 };
 
 use apdu::{ApduCommand, ApduError, ApduResponse, StatusWord};
@@ -301,8 +302,14 @@ enum State {
     Running {
         command: LedgerCommand,
         store: Option<ClientCommandInterpreter>,
+        wallet: Option<VendorWalletPolicy>,
     },
     GetWalletAddress(GetWalletAddressStep),
+    ValidateRegistration {
+        hmac: [u8; 32],
+        policy: VendorWalletPolicy,
+        store: ClientCommandInterpreter,
+    },
     Finished(LedgerResponse),
 }
 
@@ -318,6 +325,9 @@ enum GetWalletAddressStep {
     },
     WalletAddress {
         store: ClientCommandInterpreter,
+        policy: VendorWalletPolicy,
+        change: bool,
+        address_index: u32,
     },
 }
 
@@ -394,12 +404,25 @@ fn apply_vendor_signature(psbt: &mut Psbt, yielded: &[u8]) -> Result<(), LedgerE
     Ok(())
 }
 
-fn parse_address(data: Vec<u8>) -> Result<String, LedgerError> {
-    if protocol::parse_wallet_address(&data).is_err() {
-        return Err(LedgerError::unexpected_result(data, "display address"));
+fn verify_address(
+    policy: &VendorWalletPolicy,
+    change: bool,
+    address_index: u32,
+    data: Vec<u8>,
+    context: &'static str,
+) -> Result<String, LedgerError> {
+    let address = match protocol::parse_wallet_address(&data) {
+        Ok(address) => address,
+        Err(_) => return Err(LedgerError::unexpected_result(data, context)),
+    };
+    if let Err(error) = protocol::check_address(policy, change, address_index, &address) {
+        return Err(LedgerError::unexpected_result(
+            data,
+            format!("{context}: {error}"),
+        ));
     }
     String::from_utf8(data)
-        .map_err(|error| LedgerError::unexpected_result(error.into_bytes(), "display address"))
+        .map_err(|error| LedgerError::unexpected_result(error.into_bytes(), context))
 }
 impl<C, T, R, E> Interpreter for LedgerInterpreter<C, T, R, E>
 where
@@ -415,6 +438,7 @@ where
 
     fn start(&mut self, command: Self::Command) -> Result<Self::Transmit, Self::Error> {
         let command: LedgerCommand = command.try_into()?;
+        let mut wallet = None;
         let (transmit, store) = match &command {
             LedgerCommand::GetAppInfo => (from_vendor(vendor_command::get_version()), None),
             LedgerCommand::GetMasterFingerprint => {
@@ -455,8 +479,12 @@ where
                         *display,
                     ));
                     let store = ClientCommandInterpreter::for_wallet(&policy);
-                    self.state =
-                        State::GetWalletAddress(GetWalletAddressStep::WalletAddress { store });
+                    self.state = State::GetWalletAddress(GetWalletAddressStep::WalletAddress {
+                        store,
+                        policy,
+                        change: *change,
+                        address_index: *address_index,
+                    });
                     return Ok(Self::Transmit::from(transmit));
                 }
             },
@@ -464,6 +492,7 @@ where
                 let policy = policy.to_vendor().map_err(LedgerError::from)?;
                 let command = from_vendor(vendor_command::register_wallet(&policy));
                 let store = ClientCommandInterpreter::for_wallet(&policy);
+                wallet = Some(policy);
                 (command, Some(store))
             }
             LedgerCommand::SignPsbt { psbt, policy, hmac } => {
@@ -475,13 +504,18 @@ where
                 (from_vendor(command), Some(store))
             }
         };
-        self.state = State::Running { command, store };
+        self.state = State::Running {
+            command,
+            store,
+            wallet,
+        };
         Ok(Self::Transmit::from(transmit))
     }
 
     fn exchange(&mut self, data: Vec<u8>) -> Result<Option<Self::Transmit>, Self::Error> {
-        let res = ApduResponse::try_from(data).map_err(LedgerError::from)?;
+        // Consume pending state even if APDU framing or its status is malformed.
         let state = std::mem::take(&mut self.state);
+        let res = ApduResponse::try_from(data).map_err(LedgerError::from)?;
         let (next_state, result) = match state {
             State::GetWalletAddress(GetWalletAddressStep::Fingerprint { path, display }) => {
                 if res.status_word != StatusWord::OK {
@@ -546,11 +580,21 @@ where
                     display,
                 )));
                 (
-                    State::GetWalletAddress(GetWalletAddressStep::WalletAddress { store }),
+                    State::GetWalletAddress(GetWalletAddressStep::WalletAddress {
+                        store,
+                        policy,
+                        change,
+                        address_index,
+                    }),
                     Some(cmd),
                 )
             }
-            State::GetWalletAddress(GetWalletAddressStep::WalletAddress { mut store }) => {
+            State::GetWalletAddress(GetWalletAddressStep::WalletAddress {
+                mut store,
+                policy,
+                change,
+                address_index,
+            }) => {
                 if is_cancel(res.status_word) {
                     return Err(LedgerError::UserCancelled(res.status_word).into());
                 } else if res.status_word == StatusWord::InterruptedExecution {
@@ -558,24 +602,77 @@ where
                     let cmd = Self::Transmit::from(from_vendor(
                         vendor_command::continue_interrupted(transmit),
                     ));
-                    self.state =
-                        State::GetWalletAddress(GetWalletAddressStep::WalletAddress { store });
+                    self.state = State::GetWalletAddress(GetWalletAddressStep::WalletAddress {
+                        store,
+                        policy,
+                        change,
+                        address_index,
+                    });
                     return Ok(Some(cmd));
                 } else if res.status_word != StatusWord::OK {
                     return Err(LedgerError::Status(res.status_word, "display address").into());
                 } else {
-                    let address = parse_address(res.data)?;
+                    let address = verify_address(
+                        &policy,
+                        change,
+                        address_index,
+                        res.data,
+                        "display address",
+                    )?;
                     (State::Finished(LedgerResponse::Address(address)), None)
                 }
             }
-            State::Running { mut store, command } => {
+            State::ValidateRegistration {
+                hmac,
+                policy,
+                mut store,
+            } => {
+                if is_cancel(res.status_word) {
+                    return Err(LedgerError::UserCancelled(res.status_word).into());
+                }
+                if res.status_word == StatusWord::InterruptedExecution {
+                    let transmit = store.execute(res.data).map_err(store_error)?;
+                    self.state = State::ValidateRegistration {
+                        hmac,
+                        policy,
+                        store,
+                    };
+                    return Ok(Some(Self::Transmit::from(from_vendor(
+                        vendor_command::continue_interrupted(transmit),
+                    ))));
+                }
+                if res.status_word != StatusWord::OK {
+                    return Err(LedgerError::Status(
+                        res.status_word,
+                        "register wallet: address verification",
+                    )
+                    .into());
+                }
+                verify_address(
+                    &policy,
+                    false,
+                    0,
+                    res.data,
+                    "register wallet: address verification",
+                )?;
+                (State::Finished(LedgerResponse::WalletHmac(hmac)), None)
+            }
+            State::Running {
+                mut store,
+                command,
+                wallet,
+            } => {
                 if res.status_word == StatusWord::InterruptedExecution {
                     if let Some(ref mut s) = store {
                         let transmit = s.execute(res.data).map_err(store_error)?;
                         let cmd = Self::Transmit::from(from_vendor(
                             vendor_command::continue_interrupted(transmit),
                         ));
-                        self.state = State::Running { store, command };
+                        self.state = State::Running {
+                            store,
+                            command,
+                            wallet,
+                        };
                         return Ok(Some(cmd));
                     } else {
                         return Err(LedgerError::Interrupted.into());
@@ -627,6 +724,7 @@ where
                         self.state = State::Running {
                             store: None,
                             command: retry,
+                            wallet: None,
                         };
                         return Ok(Some(transmit));
                     }
@@ -703,7 +801,25 @@ where
                                     "register wallet: response too short",
                                 )
                             })?;
-                        (State::Finished(LedgerResponse::WalletHmac(hmac)), None)
+                        let policy = wallet
+                            .ok_or(LedgerError::MissingCommandInfo("register wallet policy"))?;
+                        let store = store.ok_or(LedgerError::Interrupted)?;
+                        let transmit =
+                            Self::Transmit::from(from_vendor(vendor_command::get_wallet_address(
+                                &policy,
+                                Some(&hmac),
+                                false,
+                                0,
+                                false,
+                            )));
+                        (
+                            State::ValidateRegistration {
+                                hmac,
+                                policy,
+                                store,
+                            },
+                            Some(transmit),
+                        )
                     }
                     LedgerCommand::SignPsbt { mut psbt, .. } => match res.status_word {
                         status if is_cancel(status) => {

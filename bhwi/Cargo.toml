@@ -43,7 +43,7 @@ serde = { workspace = true, features = ["derive"], optional = true }
 serde_json.workspace = true
 serde_cbor = { workspace = true, optional = true }
 thiserror.workspace = true
-ledger_bitcoin_client = { git = "https://github.com/trevarj/app-bitcoin", rev = "4cc5358bb896e6f1687bc58d06529b9a13801145", optional = true, default-features = false }
+ledger_bitcoin_client = { git = "https://github.com/trevarj/app-bitcoin", rev = "4cc5358bb896e6f1687bc58d06529b9a13801145", optional = true, default-features = false, features = ["paranoid_client"] }
 
 serde_bytes = { version = "0.11.14", optional = true }
 

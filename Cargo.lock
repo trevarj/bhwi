@@ -264,7 +264,7 @@ dependencies = [
  "k256",
  "ledger_bitcoin_client",
  "log",
- "miniscript",
+ "miniscript 13.2.0",
  "noise-protocol",
  "noise-rust-crypto",
  "prost",
@@ -323,7 +323,7 @@ dependencies = [
  "clap",
  "futures",
  "hex",
- "miniscript",
+ "miniscript 13.2.0",
  "rand_core 0.6.4",
  "rpassword",
  "serde",
@@ -396,7 +396,7 @@ dependencies = [
  "bhwi-async",
  "bhwi-async-transport",
  "bitcoin",
- "miniscript",
+ "miniscript 13.2.0",
  "reqwest",
  "serde_cbor",
  "tokio",
@@ -425,7 +425,7 @@ dependencies = [
  "bhwi-async",
  "bhwi-async-transport",
  "hex",
- "miniscript",
+ "miniscript 13.2.0",
  "reqwest",
  "serde",
  "serde_json",
@@ -440,7 +440,7 @@ dependencies = [
  "async-trait",
  "bhwi",
  "bhwi-async",
- "miniscript",
+ "miniscript 13.2.0",
  "tokio",
 ]
 
@@ -1674,6 +1674,7 @@ version = "0.7.0"
 source = "git+https://github.com/trevarj/app-bitcoin?rev=4cc5358bb896e6f1687bc58d06529b9a13801145#4cc5358bb896e6f1687bc58d06529b9a13801145"
 dependencies = [
  "bitcoin",
+ "miniscript 12.3.7",
 ]
 
 [[package]]
@@ -1744,6 +1745,16 @@ name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
+
+[[package]]
+name = "miniscript"
+version = "12.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8343cc1ef1408bd9bdbf69f7aef47017dfab7e6349ec26fddf62e0e9fb5a4cf"
+dependencies = [
+ "bech32",
+ "bitcoin",
+]
 
 [[package]]
 name = "miniscript"
