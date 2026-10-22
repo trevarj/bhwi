@@ -2,15 +2,9 @@
 
 use core::str::FromStr;
 
-use bitcoin::{
-    bip32::{ChildNumber, DerivationPath, Fingerprint, Xpub},
-    consensus::encode::{self, VarInt},
-    hashes::{Hash, HashEngine, sha256},
-};
+use bitcoin::bip32::{ChildNumber, DerivationPath, Fingerprint, Xpub};
 
 use miniscript::descriptor::{KeyInfo, WalletPolicy, WalletPolicyError};
-
-use super::{merkle::MerkleTree, store::DelegatedStore};
 
 /// Ledger wallet policy wire-format version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -48,24 +42,6 @@ pub struct LedgerWalletPolicy {
     pub policy: WalletPolicy,
 }
 
-/// Extracted wallet policy data needed for Ledger wire format serialization.
-struct WalletPolicyParts {
-    descriptor_template: String,
-    key_strings: Vec<String>,
-}
-
-impl WalletPolicyParts {
-    fn from_policy(policy: &WalletPolicy) -> Result<Self, WalletError> {
-        let (descriptor_template, keys) =
-            crate::policy::extract_parts(policy).map_err(WalletError::WalletPolicy)?;
-        let key_strings: Vec<String> = keys.iter().map(crate::policy::format_key_info).collect();
-        Ok(Self {
-            descriptor_template,
-            key_strings,
-        })
-    }
-}
-
 impl LedgerWalletPolicy {
     /// Creates a policy wrapper without validating firmware-specific constraints.
     pub fn new(name: String, version: Version, policy: WalletPolicy) -> Self {
@@ -76,68 +52,45 @@ impl LedgerWalletPolicy {
         }
     }
 
+    pub(super) fn to_vendor(
+        &self,
+    ) -> Result<ledger_bitcoin_client::wallet::WalletPolicy, WalletError> {
+        use ledger_bitcoin_client::wallet::{Version as VendorVersion, WalletPubKey};
+        let (template, keys) = crate::policy::extract_parts(&self.policy)?;
+        let keys = keys
+            .iter()
+            .map(|key| {
+                let (fingerprint, path, inner) =
+                    crate::policy::xpub_origin(key).ok_or(WalletError::InvalidPolicy)?;
+                Ok(WalletPubKey {
+                    inner,
+                    source: fingerprint.zip(path),
+                    // Multipath suffixes belong to the extracted template, not KEY_INFO.
+                    multipath: None,
+                })
+            })
+            .collect::<Result<Vec<_>, WalletError>>()?;
+        Ok(ledger_bitcoin_client::wallet::WalletPolicy::new(
+            self.name.clone(),
+            match self.version {
+                Version::V1 => VendorVersion::V1,
+                Version::V2 => VendorVersion::V2,
+            },
+            template,
+            keys,
+        ))
+    }
+
     /// Serializes the policy with its descriptor commitment and key Merkle root.
     ///
     /// The name byte length is cast to `u8` without range validation.
     pub fn serialize(&self) -> Result<Vec<u8>, WalletError> {
-        let parts = WalletPolicyParts::from_policy(&self.policy)?;
-        let mut res: Vec<u8> = (self.version as u8).to_be_bytes().to_vec();
-        res.extend_from_slice(&(self.name.len() as u8).to_be_bytes());
-        res.extend_from_slice(self.name.as_bytes());
-        res.extend(encode::serialize(&VarInt(
-            parts.descriptor_template.len() as u64
-        )));
-
-        if self.version == Version::V2 {
-            let mut engine = sha256::Hash::engine();
-            engine.input(parts.descriptor_template.as_bytes());
-            let hash = sha256::Hash::from_engine(engine).to_byte_array();
-            res.extend_from_slice(&hash);
-        } else {
-            res.extend_from_slice(parts.descriptor_template.as_bytes());
-        }
-
-        res.extend(encode::serialize(&VarInt(parts.key_strings.len() as u64)));
-
-        res.extend_from_slice(
-            MerkleTree::new(
-                parts
-                    .key_strings
-                    .iter()
-                    .map(|key| {
-                        let mut preimage = vec![0x00];
-                        preimage.extend_from_slice(key.as_bytes());
-                        let mut engine = sha256::Hash::engine();
-                        engine.input(&preimage);
-                        sha256::Hash::from_engine(engine).to_byte_array()
-                    })
-                    .collect(),
-            )
-            .root_hash(),
-        );
-
-        Ok(res)
+        Ok(self.to_vendor()?.serialize())
     }
 
     /// Returns the SHA-256 digest of the serialized policy.
     pub fn id(&self) -> Result<[u8; 32], WalletError> {
-        let serialized = self.serialize()?;
-        let mut engine = sha256::Hash::engine();
-        engine.input(&serialized);
-        Ok(sha256::Hash::from_engine(engine).to_byte_array())
-    }
-
-    /// Creates a delegated store containing the policy, template, and key preimages.
-    pub fn to_store(&self) -> Result<DelegatedStore, WalletError> {
-        let parts = WalletPolicyParts::from_policy(&self.policy)?;
-        let mut store = DelegatedStore::new();
-
-        store.add_known_preimage(self.serialize()?);
-        let keys: Vec<String> = parts.key_strings.to_vec();
-        store.add_known_list(&keys.iter().map(|s| s.as_bytes()).collect::<Vec<_>>());
-        store.add_known_preimage(parts.descriptor_template.as_bytes().to_vec());
-
-        Ok(store)
+        Ok(self.to_vendor()?.id())
     }
 }
 
