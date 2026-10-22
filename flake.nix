@@ -188,6 +188,7 @@
         };
         cargoLock = {
           lockFile = ./Cargo.lock;
+          outputHashes."ledger_bitcoin_client-0.7.0" = "sha256-Yd9CNv+/ztH4L1RzRRWTdtqR5i0oC5CUh08HbCQ1NXw=";
         };
         bhwi-wasm-pkg = rustPlatformWasm.buildRustPackage {
           name = "bhwi-wasm-pkg";

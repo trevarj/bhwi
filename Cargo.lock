@@ -262,6 +262,7 @@ dependencies = [
  "hex",
  "itertools",
  "k256",
+ "ledger_bitcoin_client",
  "log",
  "miniscript",
  "noise-protocol",
@@ -1665,6 +1666,14 @@ dependencies = [
  "once_cell",
  "sha2",
  "signature",
+]
+
+[[package]]
+name = "ledger_bitcoin_client"
+version = "0.7.0"
+source = "git+https://github.com/trevarj/app-bitcoin?rev=4cc5358bb896e6f1687bc58d06529b9a13801145#4cc5358bb896e6f1687bc58d06529b9a13801145"
+dependencies = [
+ "bitcoin",
 ]
 
 [[package]]
